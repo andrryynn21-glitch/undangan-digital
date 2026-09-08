@@ -24,3 +24,482 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+
+/* ==========================================================================
+   Lapisan visual undangan (prefix `inv-`)
+   ==========================================================================
+   Semua kelas di bawah membaca CSS custom property tema (`--theme-primary`,
+   `--theme-accent`, …) yang dipasang `getThemeCssVars()` sebagai inline style
+   di elemen `.inv-page`. Nilai di `.inv-page` di sini hanya cadangan: inline
+   style punya spesifisitas lebih tinggi, jadi tema tetap yang menang.
+
+   Warna turunan dibuat dengan `color-mix()` supaya efek mewah (kaca, kilau,
+   bayangan) otomatis menyesuaikan tema tanpa menambah field baru ke kontrak
+   `ThemeConfig`.
+   ========================================================================== */
+
+.inv-page {
+  --theme-primary: #c9a227;
+  --theme-secondary: #f5efe6;
+  --theme-background: #fffdf9;
+  --theme-text: #2e2a24;
+  --theme-accent: #a8842c;
+
+  /* Membatasi lapisan latar ber-z-index negatif agar tidak menembus <body>. */
+  isolation: isolate;
+}
+
+/* --------------------------------------------------------------------------
+   Latar berlapis
+
+   Posisi (`.inv-backdrop`) dipisahkan dari cat/gradasinya (`.inv-surface--*`)
+   supaya gradasi yang sama bisa dipakai di lapisan `fixed` milik halaman dan
+   di lapisan `absolute` di dalam sampul.
+   -------------------------------------------------------------------------- */
+
+.inv-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+}
+
+/* Silver: satu gradasi lembut dari atas — tetap bersih, tidak flat putih. */
+.inv-surface--simple {
+  background:
+    radial-gradient(
+      130% 70% at 50% -12%,
+      color-mix(in srgb, var(--theme-secondary) 92%, transparent),
+      transparent 62%
+    ),
+    var(--theme-background);
+}
+
+/* Premium: tambahan dua rona aksen di sudut atas dan cahaya hangat di bawah. */
+.inv-surface--rich {
+  background:
+    radial-gradient(
+      55% 38% at 10% 6%,
+      color-mix(in srgb, var(--theme-primary) 20%, transparent),
+      transparent 70%
+    ),
+    radial-gradient(
+      50% 36% at 90% 20%,
+      color-mix(in srgb, var(--theme-accent) 18%, transparent),
+      transparent 70%
+    ),
+    radial-gradient(
+      75% 45% at 50% 108%,
+      color-mix(in srgb, var(--theme-primary) 16%, transparent),
+      transparent 72%
+    ),
+    radial-gradient(
+      130% 70% at 50% -12%,
+      color-mix(in srgb, var(--theme-secondary) 88%, transparent),
+      transparent 62%
+    ),
+    var(--theme-background);
+}
+
+/* VIP: rona lebih tebal, empat penjuru terisi, plus vignette agar berkesan
+   dalam dan prestisius. */
+.inv-surface--lavish {
+  background:
+    radial-gradient(
+      50% 34% at 8% 4%,
+      color-mix(in srgb, var(--theme-primary) 30%, transparent),
+      transparent 70%
+    ),
+    radial-gradient(
+      48% 32% at 92% 14%,
+      color-mix(in srgb, var(--theme-accent) 28%, transparent),
+      transparent 70%
+    ),
+    radial-gradient(
+      45% 30% at 4% 62%,
+      color-mix(in srgb, var(--theme-accent) 20%, transparent),
+      transparent 72%
+    ),
+    radial-gradient(
+      45% 30% at 96% 78%,
+      color-mix(in srgb, var(--theme-primary) 22%, transparent),
+      transparent 72%
+    ),
+    radial-gradient(
+      80% 45% at 50% 108%,
+      color-mix(in srgb, var(--theme-primary) 24%, transparent),
+      transparent 72%
+    ),
+    radial-gradient(
+      130% 72% at 50% -12%,
+      color-mix(in srgb, var(--theme-secondary) 95%, transparent),
+      transparent 64%
+    ),
+    var(--theme-background);
+  box-shadow: inset 0 0 220px 48px
+    color-mix(in srgb, var(--theme-text) 12%, transparent);
+}
+
+/* Tekstur kertas halus. Noise-nya dibuat filter SVG inline supaya tidak ada
+   file gambar tambahan yang harus diunduh. */
+.inv-grain::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)'/%3E%3C/svg%3E");
+  opacity: 0.055;
+  mix-blend-mode: multiply;
+}
+
+/* --------------------------------------------------------------------------
+   Kartu kaca (glassmorphism)
+   -------------------------------------------------------------------------- */
+
+.inv-glass {
+  position: relative;
+  background: color-mix(in srgb, var(--theme-background) 62%, transparent);
+  backdrop-filter: blur(14px) saturate(1.3);
+  -webkit-backdrop-filter: blur(14px) saturate(1.3);
+  border: 1px solid color-mix(in srgb, var(--theme-accent) 32%, transparent);
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, #fff 70%, transparent),
+    0 2px 6px -3px color-mix(in srgb, var(--theme-text) 22%, transparent),
+    0 24px 48px -28px color-mix(in srgb, var(--theme-text) 48%, transparent);
+}
+
+/* Dipakai untuk kartu utama (detail acara, RSVP) pada paket Premium & VIP. */
+.inv-glass-strong {
+  background: color-mix(in srgb, var(--theme-background) 74%, transparent);
+  border-color: color-mix(in srgb, var(--theme-accent) 45%, transparent);
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, #fff 85%, transparent),
+    inset 0 0 40px -18px color-mix(in srgb, var(--theme-primary) 50%, transparent),
+    0 3px 8px -4px color-mix(in srgb, var(--theme-text) 26%, transparent),
+    0 36px 64px -34px color-mix(in srgb, var(--theme-text) 58%, transparent);
+}
+
+/* Panel dalam kartu kaca. Memakai warna tema (bukan blur lagi) supaya tidak
+   ada dua lapisan backdrop-filter yang bertumpuk — hasilnya lebih bersih dan
+   lebih ringan dirender. */
+.inv-inset {
+  background: color-mix(in srgb, var(--theme-secondary) 58%, transparent);
+  border: 1px solid color-mix(in srgb, var(--theme-accent) 22%, transparent);
+}
+
+/* Garis tepi tipis berkilau: gradasi diletakkan di area padding lalu bagian
+   dalamnya dilubangi dengan mask, sehingga hanya sisa 1px di tepi kartu. */
+.inv-sheen::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, #fff 92%, transparent),
+    color-mix(in srgb, var(--theme-primary) 65%, transparent) 28%,
+    transparent 52%,
+    color-mix(in srgb, var(--theme-accent) 55%, transparent) 82%,
+    color-mix(in srgb, #fff 75%, transparent)
+  );
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  mask-composite: exclude;
+  pointer-events: none;
+}
+
+/* --------------------------------------------------------------------------
+   Ornamen & pembatas
+   -------------------------------------------------------------------------- */
+
+/* Garis pembatas yang memudar ke arah luar. `inv-rule--flip` dipakai di sisi
+   kiri ornamen agar gradasinya simetris. */
+.inv-rule {
+  height: 1px;
+  background: linear-gradient(
+    to right,
+    transparent,
+    color-mix(in srgb, var(--theme-accent) 55%, transparent) 48%,
+    color-mix(in srgb, var(--theme-primary) 75%, transparent)
+  );
+}
+
+.inv-rule--flip {
+  transform: scaleX(-1);
+}
+
+/* Teks judul dengan kilau emas bergerak (khusus VIP). */
+.inv-shimmer {
+  background-image: linear-gradient(
+    100deg,
+    var(--theme-primary) 0%,
+    color-mix(in srgb, #fff 22%, var(--theme-primary)) 42%,
+    var(--theme-primary) 62%
+  );
+  background-size: 220% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: inv-shimmer 7s linear infinite;
+}
+
+@keyframes inv-shimmer {
+  to {
+    background-position: -220% 0;
+  }
+}
+
+/* --------------------------------------------------------------------------
+   Kartu perhiasan untuk hitung mundur
+   -------------------------------------------------------------------------- */
+
+.inv-jewel {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--theme-accent) 48%, transparent);
+  background: linear-gradient(
+    160deg,
+    color-mix(in srgb, #fff 80%, transparent) 0%,
+    color-mix(in srgb, var(--theme-secondary) 78%, transparent) 44%,
+    color-mix(in srgb, var(--theme-primary) 22%, transparent) 100%
+  );
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, #fff 90%, transparent),
+    inset 0 -10px 20px -12px
+      color-mix(in srgb, var(--theme-primary) 70%, transparent),
+    0 16px 28px -20px color-mix(in srgb, var(--theme-text) 65%, transparent);
+}
+
+/* Kilau spekular di sudut atas, seperti pantulan cahaya pada batu permata. */
+.inv-jewel::before {
+  content: "";
+  position: absolute;
+  inset-inline: -25%;
+  top: -70%;
+  height: 130%;
+  background: radial-gradient(
+    50% 50% at 50% 50%,
+    color-mix(in srgb, #fff 72%, transparent),
+    transparent 70%
+  );
+  pointer-events: none;
+}
+
+/* --------------------------------------------------------------------------
+   Input form bergaya kaca
+   -------------------------------------------------------------------------- */
+
+.inv-field {
+  background: color-mix(in srgb, var(--theme-background) 72%, transparent);
+  border: 1px solid color-mix(in srgb, var(--theme-accent) 34%, transparent);
+  color: var(--theme-text);
+  transition:
+    border-color 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.inv-field::placeholder {
+  color: color-mix(in srgb, var(--theme-text) 45%, transparent);
+}
+
+.inv-field:focus,
+.inv-field:focus-visible {
+  outline: none;
+  border-color: color-mix(in srgb, var(--theme-primary) 80%, transparent);
+  box-shadow: 0 0 0 3px
+    color-mix(in srgb, var(--theme-primary) 22%, transparent);
+}
+
+/* Pilihan kehadiran: label yang membungkus radio tersembunyi. */
+.inv-choice {
+  background: color-mix(in srgb, var(--theme-background) 72%, transparent);
+  border: 1px solid color-mix(in srgb, var(--theme-accent) 34%, transparent);
+  transition:
+    background-color 0.2s ease,
+    border-color 0.2s ease,
+    box-shadow 0.2s ease;
+}
+
+.inv-choice:has(:checked) {
+  background: color-mix(in srgb, var(--theme-primary) 16%, transparent);
+  border-color: color-mix(in srgb, var(--theme-primary) 75%, transparent);
+  box-shadow: inset 0 0 0 1px
+    color-mix(in srgb, var(--theme-primary) 35%, transparent);
+}
+
+.inv-choice:has(:focus-visible) {
+  box-shadow: 0 0 0 3px
+    color-mix(in srgb, var(--theme-primary) 25%, transparent);
+}
+
+/* --------------------------------------------------------------------------
+   Tombol
+   -------------------------------------------------------------------------- */
+
+.inv-btn {
+  position: relative;
+  background: linear-gradient(
+    140deg,
+    color-mix(in srgb, #fff 18%, var(--theme-primary)),
+    var(--theme-primary) 55%,
+    color-mix(in srgb, var(--theme-accent) 70%, var(--theme-primary))
+  );
+  color: var(--theme-background);
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, #fff 45%, transparent),
+    0 10px 24px -12px color-mix(in srgb, var(--theme-primary) 85%, transparent);
+  transition:
+    transform 0.25s ease,
+    box-shadow 0.25s ease,
+    filter 0.25s ease;
+}
+
+.inv-btn:hover {
+  transform: translateY(-1px);
+  filter: brightness(1.06);
+  box-shadow:
+    inset 0 1px 0 color-mix(in srgb, #fff 55%, transparent),
+    0 16px 34px -12px color-mix(in srgb, var(--theme-primary) 95%, transparent);
+}
+
+.inv-btn:active {
+  transform: translateY(0);
+}
+
+/* Cincin denyut di sekitar tombol "Buka Undangan". */
+.inv-pulse::before,
+.inv-pulse::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  border: 1px solid color-mix(in srgb, var(--theme-primary) 70%, transparent);
+  animation: inv-pulse-ring 2.8s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+  pointer-events: none;
+}
+
+.inv-pulse::after {
+  animation-delay: 1.4s;
+}
+
+@keyframes inv-pulse-ring {
+  0% {
+    transform: scale(1);
+    opacity: 0.9;
+  }
+  75%,
+  100% {
+    transform: scale(1.55);
+    opacity: 0;
+  }
+}
+
+/* --------------------------------------------------------------------------
+   Animasi masuk
+   -------------------------------------------------------------------------- */
+
+@keyframes inv-rise {
+  from {
+    opacity: 0;
+    transform: translateY(22px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* Dipasang saat sampul dibuka: tiap bagian undangan naik berurutan. */
+.inv-reveal > * {
+  animation: inv-rise 0.9s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.inv-reveal > *:nth-child(1) {
+  animation-delay: 0.05s;
+}
+.inv-reveal > *:nth-child(2) {
+  animation-delay: 0.14s;
+}
+.inv-reveal > *:nth-child(3) {
+  animation-delay: 0.23s;
+}
+.inv-reveal > *:nth-child(4) {
+  animation-delay: 0.32s;
+}
+.inv-reveal > *:nth-child(5) {
+  animation-delay: 0.41s;
+}
+.inv-reveal > *:nth-child(6) {
+  animation-delay: 0.5s;
+}
+.inv-reveal > *:nth-child(n + 7) {
+  animation-delay: 0.58s;
+}
+
+@keyframes inv-float {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-6px);
+  }
+}
+
+.inv-float {
+  animation: inv-float 7s ease-in-out infinite;
+}
+
+/* --------------------------------------------------------------------------
+   Scrollbar buku ucapan
+   -------------------------------------------------------------------------- */
+
+.inv-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--theme-accent) 55%, transparent)
+    transparent;
+}
+
+.inv-scroll::-webkit-scrollbar {
+  width: 6px;
+}
+
+.inv-scroll::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--theme-accent) 50%, transparent);
+}
+
+/* --------------------------------------------------------------------------
+   Hormati preferensi "kurangi gerakan"
+   -------------------------------------------------------------------------- */
+
+@media (prefers-reduced-motion: reduce) {
+  .inv-reveal > *,
+  .inv-float,
+  .inv-shimmer,
+  .inv-pulse::before,
+  .inv-pulse::after {
+    animation: none !important;
+  }
+
+  /* Tanpa animasi, kilau gradasi tidak perlu — kembalikan ke warna solid
+     agar judul tetap terbaca. */
+  .inv-shimmer {
+    background-image: none;
+    color: var(--theme-primary);
+  }
+
+  .inv-pulse::before,
+  .inv-pulse::after {
+    display: none;
+  }
+
+  .inv-btn:hover {
+    transform: none;
+  }
+}

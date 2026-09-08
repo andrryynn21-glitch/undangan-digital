@@ -1,0 +1,18 @@
+{
+  "id": "minimal-gold",
+  "name": "Minimal Gold",
+  "previewImage": "/themes/minimal-gold/preview.jpg",
+  "tierRequirement": "silver",
+  "colors": {
+    "primary": "#C9A227",
+    "secondary": "#F5EFE6",
+    "background": "#FFFDF9",
+    "text": "#2E2A24",
+    "accent": "#A8842C"
+  },
+  "fonts": {
+    "headingFont": "var(--font-playfair-display), Georgia, serif",
+    "bodyFont": "var(--font-inter), system-ui, sans-serif"
+  },
+  "frameStyle": "minimalist"
+}

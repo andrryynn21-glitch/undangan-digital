@@ -1,0 +1,18 @@
+{
+  "id": "floral-romantic",
+  "name": "Floral Romantic",
+  "previewImage": "/themes/floral-romantic/preview.jpg",
+  "tierRequirement": "premium",
+  "colors": {
+    "primary": "#D98BA0",
+    "secondary": "#F7E7EA",
+    "background": "#FFF9FA",
+    "text": "#3B2B30",
+    "accent": "#7A9E7E"
+  },
+  "fonts": {
+    "headingFont": "var(--font-cormorant-garamond), Georgia, serif",
+    "bodyFont": "var(--font-plus-jakarta-sans), system-ui, sans-serif"
+  },
+  "frameStyle": "floral"
+}
