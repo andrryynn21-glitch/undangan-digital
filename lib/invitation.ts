@@ -174,9 +174,9 @@ const UNIQUE_VIOLATION = "23505";
 /**
  * Menyimpan undangan baru.
  *
- * `theme_config` sengaja tidak dikirim agar memakai default `{}` dari database.
- * `payment_data` ikut dikirim karena form admin sudah bisa mengisi rekening
- * amplop digital; bila tidak ada rekening, kirim `{}` agar bentuknya konsisten.
+ * `theme_config` dikirim bila admin mengisi data budaya (tradisi & daerah);
+ * bila tidak ada, kolom JSONB memakai default `{}` dari database. `payment_data`
+ * ikut dikirim karena form admin sudah bisa mengisi rekening amplop digital.
  *
  * Memakai service role, satu-satunya jalan menulis ke `invitations` setelah RLS
  * aktif. Dulu ada fallback senyap ke anon key di sini; itu dihapus dengan
@@ -195,6 +195,7 @@ export async function insertInvitation(
     | "bride_data"
     | "event_data"
     | "payment_data"
+    | "theme_config"
     | "music_url"
   >
 ): Promise<{ error: string | null }> {

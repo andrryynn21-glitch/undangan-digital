@@ -284,6 +284,8 @@ export async function createInvitation(
   const bridePhotoUrl = readString(formData, "bridePhotoUrl");
   const coverPhotoUrl = readString(formData, "coverPhotoUrl");
   const galleryUrlsRaw = readStringList(formData, "galleryUrls");
+  const tradition = readString(formData, "tradition");
+  const region = readString(formData, "region");
 
   if (!SLUG_PATTERN.test(slug) || slug.length < 3 || slug.length > 60) {
     return {
@@ -404,6 +406,7 @@ export async function createInvitation(
       ...(gallery.urls.length > 0 ? { gallery_urls: gallery.urls } : {}),
     },
     payment_data: paymentData,
+    theme_config: tradition ? { tradition, region } : {},
     music_url: null,
   });
 

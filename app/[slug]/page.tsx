@@ -22,6 +22,7 @@ import {
   getThemeCssVars,
   getTierFeatures,
 } from "@/config/themes";
+import { applyCulturalOverride, parseCulturalData } from "@/lib/culture-theme";
 import { WISH_DISPLAY_LIMIT } from "@/config/tiers";
 import { formatEventDate, getCountdownEvent } from "@/lib/date";
 import { getInvitationBySlug, getWishes } from "@/lib/invitation";
@@ -40,8 +41,13 @@ export default async function InvitationPage({
     notFound();
   }
 
-  const theme = getThemeConfig(invitation.theme_id);
+  const baseTheme = getThemeConfig(invitation.theme_id);
   const features = getTierFeatures(invitation.tier);
+
+  // Terapkan override budaya (tradisi & daerah) bila admin mengisinya.
+  // Undangan lama yang tidak punya data budaya mendapat baseTheme apa adanya.
+  const culturalData = parseCulturalData(invitation.theme_config);
+  const theme = applyCulturalOverride(baseTheme, culturalData);
 
   // Banyaknya ornamen ditentukan paket, bentuk & warnanya ditentukan tema.
   const level = getDecorLevel(invitation.tier);

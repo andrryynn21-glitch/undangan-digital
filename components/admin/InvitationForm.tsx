@@ -15,6 +15,7 @@ import {
   isTierAllowed,
 } from "@/config/themes";
 import type { TierType } from "@/config/themes";
+import { TRADITION_LIST } from "@/config/cultures";
 import { createInvitation } from "@/lib/actions";
 import {
   CREATE_INVITATION_INITIAL_STATE,
@@ -108,6 +109,10 @@ export default function InvitationForm() {
    */
   const [accountRows, setAccountRows] = useState<number[]>([0]);
   const nextRowId = useRef(1);
+
+  // Dipantau untuk menampilkan hint daerah yang sesuai tradisi terpilih.
+  const [tradition, setTradition] = useState("modern");
+  const traditionEntry = TRADITION_LIST.find((t) => t.key === tradition) ?? TRADITION_LIST[0];
 
   const availableThemes = THEMES.filter((theme) =>
     isTierAllowed(tier, theme.tierRequirement)
@@ -296,6 +301,49 @@ export default function InvitationForm() {
             slug={slug}
           />
         </div>
+      </Group>
+
+      <Group
+        title="Desain Budaya"
+        hint="pilih tradisi untuk mengubah palet warna & motif ornamen undangan"
+      >
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field label="Adat / Tradisi">
+            <select
+              name="tradition"
+              value={tradition}
+              onChange={(e) => setTradition(e.target.value)}
+              className={fieldClass}
+            >
+              {TRADITION_LIST.map((t) => (
+                <option key={t.key} value={t.key}>
+                  {t.label}
+                </option>
+              ))}
+            </select>
+          </Field>
+
+          <Field
+            label="Daerah Asal"
+            hint="mis. Yogyakarta, Bandung"
+          >
+            <input
+              type="text"
+              name="region"
+              placeholder={traditionEntry.regionHint}
+              maxLength={80}
+              className={fieldClass}
+            />
+          </Field>
+        </div>
+
+        {tradition !== "modern" ? (
+          <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:bg-amber-950 dark:text-amber-200">
+            Warna, motif, dan gaya bingkai undangan akan menyesuaikan adat{" "}
+            <strong>{traditionEntry.label}</strong>. Tema dasar yang dipilih tetap
+            menjadi fondasi tipografi dan elemen lainnya.
+          </p>
+        ) : null}
       </Group>
 
       <Group
