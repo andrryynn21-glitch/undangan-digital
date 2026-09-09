@@ -107,7 +107,7 @@ export function PhotoUpload({
   }
 
   return (
-    <div className="flex flex-col gap-2">
+    <div className="flex min-w-0 flex-col gap-2">
       <span className="text-sm font-medium">
         {label}
         {hint ? (
@@ -118,7 +118,7 @@ export function PhotoUpload({
       {/* Nilai yang benar-benar dikirim ke Server Action. */}
       <input type="hidden" name={name} value={url} />
 
-      <div className="flex items-center gap-3">
+      <div className="flex flex-wrap items-center gap-3">
         {url ? (
           // Pratinjau memakai <img> biasa, bukan next/image: sumbernya URL
           // Storage yang baru dibuat dan ini halaman admin internal, jadi
@@ -213,7 +213,7 @@ export function PhotoUploadMulti({
   }
 
   return (
-    <div className="flex flex-col gap-2">
+    <div className="flex min-w-0 flex-col gap-2">
       <span className="text-sm font-medium">
         {label}
         <span className="ml-1 font-normal text-zinc-500">
@@ -226,14 +226,14 @@ export function PhotoUploadMulti({
       ))}
 
       {urls.length > 0 ? (
-        <ul className="grid grid-cols-3 gap-2.5 sm:grid-cols-5">
+        <ul className="grid grid-cols-3 gap-2 sm:grid-cols-5">
           {urls.map((url, index) => (
-            <li key={url} className="relative">
+            <li key={url} className="relative overflow-hidden rounded-lg">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img
                 src={url}
                 alt=""
-                className="aspect-square w-full rounded-lg object-cover"
+                className="aspect-square w-full object-cover"
               />
               <button
                 type="button"
@@ -250,7 +250,7 @@ export function PhotoUploadMulti({
         </ul>
       ) : null}
 
-      <div className="flex items-center gap-3">
+      <div className="flex flex-wrap items-center gap-3">
         <PickerButton
           onPick={handlePick}
           busy={busy}

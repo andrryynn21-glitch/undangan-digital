@@ -28,14 +28,14 @@ export default async function AdminPage() {
   const { data: invitations, error } = await getInvitations();
 
   return (
-    <main className="mx-auto w-full max-w-3xl px-6 py-12">
+    <main className="mx-auto w-full max-w-3xl px-4 py-8 sm:px-6 sm:py-12">
       <header className="mb-8">
-        <div className="flex flex-wrap items-start justify-between gap-4">
+        <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
             <h1 className="text-2xl font-semibold tracking-tight">
               Dashboard Admin
             </h1>
-            <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
+            <p className="mt-1 text-sm text-zinc-500 dark:text-zinc-400">
               Buat undangan baru dan kelola undangan yang sudah ada.
             </p>
           </div>
@@ -58,7 +58,7 @@ export default async function AdminPage() {
         </Link>
       </header>
 
-      <section className="rounded-2xl border border-zinc-200 p-6 dark:border-zinc-800">
+      <section className="overflow-hidden rounded-2xl border border-zinc-200 p-5 shadow-sm sm:p-6 dark:border-zinc-800">
         <h2 className="mb-5 text-lg font-medium">Buat Undangan Baru</h2>
         <InvitationForm />
       </section>
@@ -90,30 +90,31 @@ export default async function AdminPage() {
             {invitations.map((invitation) => (
               <li
                 key={invitation.id}
-                className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-zinc-200 px-4 py-3.5 dark:border-zinc-800"
+                className="overflow-hidden rounded-xl border border-zinc-200 px-4 py-3.5 dark:border-zinc-800"
               >
-                <div className="min-w-0">
-                  <p className="truncate font-medium">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <p className="min-w-0 truncate font-medium">
                     {invitation.groom_data.nickName} &amp;{" "}
                     {invitation.bride_data.nickName}
                   </p>
-                  <p className="mt-0.5 truncate text-xs text-zinc-500">
-                    /{invitation.slug} · {getThemeConfig(invitation.theme_id).name}{" "}
-                    · {formatDateTime(invitation.created_at)}
-                  </p>
+
+                  <div className="flex shrink-0 items-center gap-2">
+                    <span className="rounded-full border border-zinc-300 px-2.5 py-0.5 text-xs uppercase tracking-wide text-zinc-600 dark:border-zinc-700 dark:text-zinc-400">
+                      {invitation.tier}
+                    </span>
+                    <Link
+                      href={`/${invitation.slug}`}
+                      className="rounded-lg bg-zinc-900 px-3 py-1.5 text-xs font-medium text-white transition-opacity hover:opacity-85 dark:bg-zinc-100 dark:text-zinc-900"
+                    >
+                      Lihat
+                    </Link>
+                  </div>
                 </div>
 
-                <div className="flex shrink-0 items-center gap-3">
-                  <span className="rounded-full border border-zinc-300 px-2.5 py-0.5 text-xs uppercase tracking-wide text-zinc-600 dark:border-zinc-700 dark:text-zinc-400">
-                    {invitation.tier}
-                  </span>
-                  <Link
-                    href={`/${invitation.slug}`}
-                    className="rounded-lg bg-zinc-900 px-3.5 py-2 text-xs font-medium text-white transition-opacity hover:opacity-85 dark:bg-zinc-100 dark:text-zinc-900"
-                  >
-                    Lihat Undangan
-                  </Link>
-                </div>
+                <p className="mt-1 truncate text-xs text-zinc-500">
+                  /{invitation.slug} · {getThemeConfig(invitation.theme_id).name}{" "}
+                  · {formatDateTime(invitation.created_at)}
+                </p>
               </li>
             ))}
           </ul>

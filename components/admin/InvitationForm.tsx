@@ -29,8 +29,9 @@ const TIER_LABELS: Record<TierType, string> = {
 
 const THEMES = getAllThemes();
 
+// `w-full min-w-0` mencegah input melebar keluar grid pada layar sempit.
 const fieldClass =
-  "rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 outline-none focus:border-zinc-500 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100";
+  "w-full min-w-0 rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 outline-none focus:border-zinc-500 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100";
 
 function Field({
   label,
@@ -72,7 +73,7 @@ function Group({
   children: React.ReactNode;
 }) {
   return (
-    <fieldset className="flex flex-col gap-4 rounded-xl border border-zinc-200 px-4 py-4 dark:border-zinc-800">
+    <fieldset className="flex min-w-0 w-full flex-col gap-4 overflow-hidden rounded-xl border border-zinc-200 px-4 py-4 dark:border-zinc-800">
       <legend className="px-1.5 text-sm font-semibold">
         {title}
         {hint ? (
@@ -304,7 +305,7 @@ export default function InvitationForm() {
         {accountRows.map((rowId, index) => (
           <div
             key={rowId}
-            className="grid items-end gap-3 sm:grid-cols-[1fr_1.2fr_1.2fr_auto]"
+            className="flex flex-col gap-3 sm:grid sm:items-end sm:grid-cols-[1fr_1.2fr_1.2fr_auto]"
           >
             <Field label="Bank / E-Wallet" labelHidden={index > 0}>
               <input
