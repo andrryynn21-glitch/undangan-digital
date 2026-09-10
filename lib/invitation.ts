@@ -37,14 +37,33 @@
  * memakai `getSupabaseAdmin()`.
  */
 
+import { cache } from "react";
+
+import {
+  guestIdPrefix,
+  guestNameFromToken,
+  splitGuestToken,
+} from "@/lib/guest";
 import { getSupabase, getSupabaseAdmin } from "@/lib/supabase";
-import type { InvitationRow, WishRow } from "@/types/invitation";
+import type {
+  GuestRow,
+  InvitationRow,
+  RsvpRow,
+  WishRow,
+} from "@/types/invitation";
 
 /**
  * Mengambil satu undangan berdasarkan slug.
  * Mengembalikan `null` bila slug tidak ada (dipakai untuk `notFound()`).
+ *
+ * Dibungkus `cache()` dari React karena halaman undangan memanggilnya dua kali
+ * dalam satu request: sekali di `generateMetadata` (untuk judul & preview Open
+ * Graph) dan sekali di komponen halaman. Dokumentasi `generateMetadata`
+ * menyebut memoisasi otomatis hanya berlaku untuk `fetch`; supabase-js tidak
+ * termasuk, jadi memoisasinya dipasang di sini. Cakupannya satu request, jadi
+ * tidak ada data yang basi antar pengunjung.
  */
-export async function getInvitationBySlug(
+export const getInvitationBySlug = cache(async function getInvitationBySlug(
   slug: string
 ): Promise<InvitationRow | null> {
   const supabase = getSupabase();
@@ -60,7 +79,7 @@ export async function getInvitationBySlug(
   }
 
   return data;
-}
+});
 
 /**
  * Mengambil ucapan untuk sebuah undangan.
@@ -274,4 +293,337 @@ export async function insertInvitation(
       error: error instanceof Error ? error.message : "Supabase tidak tersedia.",
     };
   }
+}
+
+/**
+ * Memperbarui satu undangan.
+ *
+ * `slug` sengaja TIDAK termasuk kolom yang bisa diubah. Slug adalah alamat yang
+ * sudah tersebar ke tamu lewat WhatsApp; mengubahnya berarti mematikan semua
+ * tautan yang sudah dikirim, dan tidak ada mekanisme pengalihan di aplikasi ini.
+ * Pembatasan itu ditegakkan di sini, bukan hanya disembunyikan dari form.
+ */
+export async function updateInvitationRow(
+  id: string,
+  payload: Partial<
+    Pick<
+      InvitationRow,
+      | "tier"
+      | "theme_id"
+      | "groom_data"
+      | "bride_data"
+      | "event_data"
+      | "payment_data"
+      | "theme_config"
+      | "music_url"
+    >
+  >
+): Promise<{ error: string | null }> {
+  try {
+    const supabase = getSupabaseAdmin();
+
+    const { error } = await supabase
+      .from("invitations")
+      .update(payload)
+      .eq("id", id);
+
+    return { error: error ? error.message : null };
+  } catch (error) {
+    return {
+      error: error instanceof Error ? error.message : "Supabase tidak tersedia.",
+    };
+  }
+}
+
+/**
+ * Menghapus satu undangan beserta data turunannya.
+ *
+ * Baris `wishes`, `rsvps`, dan `guests` dihapus lebih dulu secara eksplisit,
+ * tidak diserahkan ke `on delete cascade`. Alasannya: skema yang sudah ada tidak
+ * dibuat oleh aplikasi ini, jadi ada tidaknya cascade bukan sesuatu yang bisa
+ * diandalkan — dan kalau ternyata tidak ada, hasilnya adalah data tamu yang
+ * tertinggal selamanya tanpa induk. Menghapus dua kali tidak berbahaya.
+ */
+export async function deleteInvitationRow(
+  id: string
+): Promise<{ error: string | null }> {
+  try {
+    const supabase = getSupabaseAdmin();
+
+    for (const table of ["wishes", "rsvps", "guests"] as const) {
+      const { error } = await supabase
+        .from(table)
+        .delete()
+        .eq("invitation_id", id);
+
+      if (error) {
+        return { error: `Gagal menghapus data ${table}: ${error.message}` };
+      }
+    }
+
+    const { error } = await supabase.from("invitations").delete().eq("id", id);
+
+    return { error: error ? error.message : null };
+  } catch (error) {
+    return {
+      error: error instanceof Error ? error.message : "Supabase tidak tersedia.",
+    };
+  }
+}
+
+// ============================================
+// RSVP & ucapan (khusus admin)
+// ============================================
+
+/** Rekap kehadiran untuk kartu angka di dashboard. */
+export interface RsvpSummary {
+  attending: number;
+  declined: number;
+  /** Total kepala dari semua yang menyatakan hadir. */
+  headcount: number;
+}
+
+/**
+ * Membaca RSVP sebuah undangan.
+ *
+ * Memakai service role dengan sengaja: RLS hanya mengizinkan anon key MENULIS
+ * ke `rsvps`, tidak membacanya. Itu memang yang benar — daftar tamu yang sudah
+ * mengonfirmasi bukan konsumsi publik — jadi yang perlu dinaikkan haknya adalah
+ * pembacaan di sisi admin ini, bukan policy-nya yang dilonggarkan.
+ */
+export async function getRsvps(invitationId: string): Promise<{
+  data: RsvpRow[];
+  summary: RsvpSummary;
+  error: string | null;
+}> {
+  const empty: RsvpSummary = { attending: 0, declined: 0, headcount: 0 };
+
+  try {
+    const supabase = getSupabaseAdmin();
+
+    const { data, error } = await supabase
+      .from("rsvps")
+      .select("*")
+      .eq("invitation_id", invitationId)
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      return { data: [], summary: empty, error: error.message };
+    }
+
+    const rows = (data ?? []) as RsvpRow[];
+
+    const summary = rows.reduce<RsvpSummary>((acc, row) => {
+      if (row.status === "attending") {
+        acc.attending += 1;
+        acc.headcount += row.headcount ?? 1;
+      } else {
+        acc.declined += 1;
+      }
+
+      return acc;
+    }, { ...empty });
+
+    return { data: rows, summary, error: null };
+  } catch (error) {
+    return {
+      data: [],
+      summary: empty,
+      error: error instanceof Error ? error.message : "Supabase tidak tersedia.",
+    };
+  }
+}
+
+/**
+ * Ucapan untuk dashboard admin — tanpa batas jumlah menurut paket.
+ *
+ * Halaman undangan memakai `getWishes()` yang dibatasi `WISH_DISPLAY_LIMIT`
+ * supaya sesuai paket yang dibeli. Di sisi admin batas itu justru merugikan:
+ * ucapan lama akan hilang dari pandangan pemilik acara padahal datanya ada.
+ */
+export async function getWishesAdmin(invitationId: string): Promise<WishRow[]> {
+  try {
+    const supabase = getSupabaseAdmin();
+
+    const { data, error } = await supabase
+      .from("wishes")
+      .select("*")
+      .eq("invitation_id", invitationId)
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      console.error("[wishes] Gagal mengambil ucapan admin:", error.message);
+      return [];
+    }
+
+    return (data ?? []) as WishRow[];
+  } catch (error) {
+    console.error("[wishes] Supabase tidak tersedia:", error);
+    return [];
+  }
+}
+
+// ============================================
+// Daftar tamu
+// ============================================
+
+/** Batas jumlah tamu per undangan, sebagai penjaga kewarasan query & UI. */
+export const MAX_GUESTS_PER_INVITATION = 500;
+
+/**
+ * Daftar tamu sebuah undangan.
+ *
+ * Dibungkus `cache()` karena halaman undangan publik memanggilnya untuk
+ * menerjemahkan `?to=` menjadi nama tamu, dan hasilnya sering dibutuhkan lebih
+ * dari sekali dalam satu request. Service role dipakai karena `guests` tertutup
+ * bagi anon key — undangan yang bocor tidak boleh sekaligus membocorkan seluruh
+ * daftar tamu yang diundang.
+ */
+export const getGuests = cache(async function getGuests(
+  invitationId: string
+): Promise<GuestRow[]> {
+  try {
+    const supabase = getSupabaseAdmin();
+
+    const { data, error } = await supabase
+      .from("guests")
+      .select("*")
+      .eq("invitation_id", invitationId)
+      .order("created_at", { ascending: true })
+      .limit(MAX_GUESTS_PER_INVITATION);
+
+    if (error) {
+      console.error("[guests] Gagal mengambil daftar tamu:", error.message);
+      return [];
+    }
+
+    return (data ?? []) as GuestRow[];
+  } catch (error) {
+    console.error("[guests] Supabase tidak tersedia:", error);
+    return [];
+  }
+});
+
+/**
+ * Menyimpan sekumpulan nama tamu sekaligus.
+ *
+ * Nama yang sudah terdaftar dilewati — pemilik acara sering menempelkan ulang
+ * seluruh daftarnya setelah menambah beberapa nama, dan hasilnya tidak boleh
+ * berupa tamu ganda. Pembandingannya mengabaikan besar-kecil huruf.
+ *
+ * Mengembalikan jumlah yang benar-benar ditambahkan agar UI bisa jujur
+ * mengatakan "8 tamu ditambahkan, 2 sudah ada".
+ */
+export async function addGuestRows(
+  invitationId: string,
+  names: string[]
+): Promise<{ added: number; skipped: number; error: string | null }> {
+  if (names.length === 0) {
+    return { added: 0, skipped: 0, error: null };
+  }
+
+  try {
+    const existing = await getGuests(invitationId);
+    const taken = new Set(existing.map((guest) => guest.name.toLowerCase()));
+
+    const room = MAX_GUESTS_PER_INVITATION - existing.length;
+
+    if (room <= 0) {
+      return {
+        added: 0,
+        skipped: names.length,
+        error: `Daftar tamu sudah mencapai batas ${MAX_GUESTS_PER_INVITATION} orang.`,
+      };
+    }
+
+    const fresh = names
+      .filter((name) => !taken.has(name.toLowerCase()))
+      .slice(0, room);
+
+    if (fresh.length === 0) {
+      return { added: 0, skipped: names.length, error: null };
+    }
+
+    const supabase = getSupabaseAdmin();
+
+    const { error } = await supabase
+      .from("guests")
+      .insert(fresh.map((name) => ({ invitation_id: invitationId, name })));
+
+    if (error) {
+      return { added: 0, skipped: 0, error: error.message };
+    }
+
+    return {
+      added: fresh.length,
+      skipped: names.length - fresh.length,
+      error: null,
+    };
+  } catch (error) {
+    return {
+      added: 0,
+      skipped: 0,
+      error: error instanceof Error ? error.message : "Supabase tidak tersedia.",
+    };
+  }
+}
+
+/**
+ * Menghapus satu tamu.
+ * `invitation_id` ikut disaring supaya id tamu dari undangan lain tidak bisa
+ * dipakai untuk menghapus lintas undangan lewat panggilan POST langsung.
+ */
+export async function deleteGuestRow(
+  invitationId: string,
+  guestId: string
+): Promise<{ error: string | null }> {
+  try {
+    const supabase = getSupabaseAdmin();
+
+    const { error } = await supabase
+      .from("guests")
+      .delete()
+      .eq("id", guestId)
+      .eq("invitation_id", invitationId);
+
+    return { error: error ? error.message : null };
+  } catch (error) {
+    return {
+      error: error instanceof Error ? error.message : "Supabase tidak tersedia.",
+    };
+  }
+}
+
+/**
+ * Menerjemahkan nilai `?to=` menjadi nama sapaan.
+ *
+ * Dua jalur, sengaja:
+ *
+ *  1. Token berakhiran potongan UUID yang cocok dengan salah satu tamu → nama
+ *     asli dari database. Ini jalur normal untuk tautan yang dibuat panel admin,
+ *     dan ejaannya persis seperti yang diketik pemilik acara.
+ *  2. Selain itu → nilai `?to=` dibersihkan lalu dipakai apa adanya. Ini yang
+ *     membuat tautan buatan tangan (`?to=Bapak%20Andi`) tetap berfungsi, dan
+ *     membuat tautan tamu yang barisnya sudah dihapus tidak berubah menjadi
+ *     halaman tanpa sapaan.
+ *
+ * Mengembalikan string kosong bila `?to=` tidak ada atau tidak menyisakan apa
+ * pun — halaman lalu tampil persis seperti undangan tanpa personalisasi.
+ */
+export async function resolveGuestName(
+  invitationId: string,
+  rawToken: string | undefined
+): Promise<string> {
+  if (!rawToken) return "";
+
+  const { idPrefix } = splitGuestToken(rawToken);
+
+  if (idPrefix) {
+    const guests = await getGuests(invitationId);
+    const match = guests.find((guest) => guestIdPrefix(guest.id) === idPrefix);
+
+    if (match) return match.name;
+  }
+
+  return guestNameFromToken(rawToken);
 }

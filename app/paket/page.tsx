@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 
 import {
@@ -12,10 +13,27 @@ import {
 import type { FeatureCell } from "@/config/tiers";
 import { filterExistingSlugs } from "@/lib/invitation";
 
-export const metadata = {
-  title: "Perbandingan Paket — Undangan Digital",
-  description:
-    "Perbandingan lengkap paket Silver, Premium, dan VIP beserta contoh undangannya.",
+const TITLE = "Perbandingan Paket";
+
+const DESCRIPTION =
+  "Perbandingan lengkap paket Silver, Premium, dan VIP beserta contoh undangannya.";
+
+/**
+ * `openGraph` diisi supaya tautan halaman jualan pun tampil rapi saat dikirim
+ * ke calon klien lewat WhatsApp — kanal yang sama dengan undangannya sendiri.
+ * Tanpa ini yang muncul hanya URL polos.
+ */
+export const metadata: Metadata = {
+  title: TITLE,
+  description: DESCRIPTION,
+  openGraph: {
+    title: `${TITLE} · Undangan Digital`,
+    description: DESCRIPTION,
+    type: "website",
+    locale: "id_ID",
+    url: "/paket",
+  },
+  twitter: { card: "summary" },
 };
 
 /**

@@ -105,6 +105,12 @@ export default async function AdminPage() {
                     </span>
                     <CopyLinkButton slug={invitation.slug} />
                     <Link
+                      href={`/admin/undangan/${invitation.slug}`}
+                      className="rounded-lg border border-zinc-300 px-3 py-1.5 text-xs font-medium transition-colors hover:bg-zinc-100 dark:border-zinc-700 dark:hover:bg-zinc-800"
+                    >
+                      Kelola
+                    </Link>
+                    <Link
                       href={`/${invitation.slug}`}
                       className="rounded-lg bg-zinc-900 px-3 py-1.5 text-xs font-medium text-white transition-opacity hover:opacity-85 dark:bg-zinc-100 dark:text-zinc-900"
                     >

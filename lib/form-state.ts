@@ -44,6 +44,23 @@ export const CREATE_INVITATION_INITIAL_STATE: CreateInvitationState = {
 };
 
 /**
+ * State bersama untuk kedua aksi daftar tamu (tambah & hapus).
+ *
+ * Satu bentuk untuk keduanya disengaja: panel tamu hanya punya satu tempat
+ * menampilkan pesan, jadi aksi mana pun yang terakhir dijalankan boleh
+ * mengisinya tanpa perlu dua area pesan yang saling bersaing.
+ */
+export interface GuestFormState {
+  status: "idle" | "success" | "error";
+  message: string;
+}
+
+export const GUEST_INITIAL_STATE: GuestFormState = {
+  status: "idle",
+  message: "",
+};
+
+/**
  * Batas jumlah rekening amplop digital per undangan.
  *
  * Dipakai bersama oleh form admin (untuk mematikan tombol "Tambah Rekening")

@@ -1,5 +1,6 @@
 import Image from "next/image";
 import { notFound } from "next/navigation";
+import type { Metadata } from "next";
 import type { CSSProperties } from "react";
 
 import CountdownTimer from "@/components/invitation/CountdownTimer";
@@ -10,6 +11,7 @@ import EventDetails from "@/components/invitation/EventDetails";
 import PhotoGallery from "@/components/invitation/PhotoGallery";
 import RsvpForm from "@/components/invitation/RsvpForm";
 import { Section } from "@/components/invitation/Section";
+import ShareBar from "@/components/invitation/ShareBar";
 import WishBook from "@/components/invitation/WishBook";
 import {
   Backdrop,
@@ -24,14 +26,96 @@ import {
 } from "@/config/themes";
 import { applyCulturalOverride, parseCulturalData } from "@/lib/culture-theme";
 import { WISH_DISPLAY_LIMIT } from "@/config/tiers";
-import { formatEventDate, getCountdownEvent } from "@/lib/date";
-import { getInvitationBySlug, getWishes } from "@/lib/invitation";
+import { formatEventDate, getCalendarRange, getCountdownEvent } from "@/lib/date";
+import {
+  getInvitationBySlug,
+  getWishes,
+  resolveGuestName,
+} from "@/lib/invitation";
 
 /** Tabel `invitations` tidak punya kolom judul, jadi teksnya tetap di sini. */
 const INVITATION_TITLE = "Undangan Pernikahan";
 
+/**
+ * Halaman ini membaca `?to=` untuk menyapa tamu dengan namanya.
+ *
+ * `force-dynamic` karena itu WAJIB, bukan sekadar kehati-hatian: tanpa ini Next
+ * boleh menyajikan hasil render yang sama untuk semua pengunjung, dan tamu
+ * kedua akan melihat "Kepada Yth." atas nama tamu pertama.
+ */
+export const dynamic = "force-dynamic";
+
+/** Mengambil nilai `?to=` dari searchParams yang bisa berupa array. */
+function readGuestToken(
+  value: string | string[] | undefined
+): string | undefined {
+  if (Array.isArray(value)) return value[0];
+  return value;
+}
+
+/**
+ * Metadata per undangan — inilah yang dilihat orang saat tautannya dibagikan.
+ *
+ * Sebelum ini halaman undangan mewarisi metadata root, sehingga setiap tautan
+ * yang dikirim ke WhatsApp tampil sebagai URL polos tanpa nama, tanggal, maupun
+ * foto. Untuk produk yang distribusinya lewat WhatsApp, itu kerugian nyata.
+ *
+ * `getInvitationBySlug()` sudah dibungkus `cache()`, jadi pemanggilan di sini
+ * dan di komponen halaman berbagi satu query yang sama.
+ */
+export async function generateMetadata({
+  params,
+}: PageProps<"/[slug]">): Promise<Metadata> {
+  const { slug } = await params;
+
+  // Kegagalan Supabase tidak boleh menggagalkan seluruh halaman hanya karena
+  // judulnya tidak bisa disusun; komponen halaman yang menentukan nasibnya.
+  const invitation = await getInvitationBySlug(slug).catch(() => null);
+
+  if (!invitation) {
+    return { title: "Undangan tidak ditemukan" };
+  }
+
+  const groom = invitation.groom_data;
+  const bride = invitation.bride_data;
+  const couple = `${groom.nickName} & ${bride.nickName}`;
+  const mainEvent = invitation.event_data?.events?.[0];
+  const coverPhotoUrl = invitation.event_data?.cover_photo_url;
+
+  const description = mainEvent
+    ? `${formatEventDate(mainEvent.date)} · ${mainEvent.venueName}. Merupakan suatu kehormatan bagi kami apabila Bapak/Ibu berkenan hadir.`
+    : `Undangan pernikahan ${groom.fullName} & ${bride.fullName}.`;
+
+  return {
+    title: couple,
+    description,
+    // Undangan bersifat privat — tidak pantas muncul di hasil pencarian.
+    // Ini tidak mempengaruhi pratinjau WhatsApp: perayapnya mengambil tag
+    // Open Graph tanpa menghiraukan `robots`.
+    robots: { index: false, follow: false },
+    openGraph: {
+      type: "website",
+      locale: "id_ID",
+      siteName: "Undangan Digital",
+      url: `/${slug}`,
+      title: `${couple} — ${INVITATION_TITLE}`,
+      description,
+      ...(coverPhotoUrl
+        ? { images: [{ url: coverPhotoUrl, alt: couple }] }
+        : {}),
+    },
+    twitter: {
+      card: coverPhotoUrl ? "summary_large_image" : "summary",
+      title: `${couple} — ${INVITATION_TITLE}`,
+      description,
+      ...(coverPhotoUrl ? { images: [coverPhotoUrl] } : {}),
+    },
+  };
+}
+
 export default async function InvitationPage({
   params,
+  searchParams,
 }: PageProps<"/[slug]">) {
   const { slug } = await params;
 
@@ -60,6 +144,13 @@ export default async function InvitationPage({
     WISH_DISPLAY_LIMIT[invitation.tier]
   );
 
+  // Sapaan personal. Tautan tanpa `?to=` menghasilkan string kosong, dan
+  // undangan tampil persis seperti sebelum fitur ini ada.
+  const guestName = await resolveGuestName(
+    invitation.id,
+    readGuestToken((await searchParams).to)
+  );
+
   const groom = invitation.groom_data;
   const bride = invitation.bride_data;
   const events = invitation.event_data?.events ?? [];
@@ -74,6 +165,9 @@ export default async function InvitationPage({
   const coverDateText = mainEvent?.date
     ? formatEventDate(mainEvent.date)
     : undefined;
+
+  // Rentang waktu untuk tombol "tambah ke kalender" di penutup undangan.
+  const calendarRange = mainEvent ? getCalendarRange(mainEvent) : null;
 
   // Foto sampul dipakai ulang sebagai foto hero; bentuknya mengikuti tema.
   const heroFrameClass =
@@ -104,6 +198,9 @@ export default async function InvitationPage({
         eyebrow={INVITATION_TITLE}
         dateText={coverDateText}
         coverPhotoUrl={coverPhotoUrl}
+        guestName={guestName}
+        // Musik hanya untuk paket yang memang menjanjikannya.
+        musicUrl={features.customMusic ? invitation.music_url : null}
         frameStyle={frameStyle}
         level={level}
       >
@@ -243,6 +340,7 @@ export default async function InvitationPage({
           <RsvpForm
             slug={slug}
             enabled={features.rsvpToDb}
+            defaultName={guestName}
             frameStyle={frameStyle}
             level={level}
           />
@@ -294,6 +392,18 @@ export default async function InvitationPage({
             <ThemedHeading level={level} className="text-3xl sm:text-4xl">
               {groom.nickName} &amp; {bride.nickName}
             </ThemedHeading>
+
+            <ShareBar
+              coupleNames={`${groom.nickName} & ${bride.nickName}`}
+              eventLabel={mainEvent?.label ?? INVITATION_TITLE}
+              location={
+                mainEvent
+                  ? `${mainEvent.venueName}, ${mainEvent.address}`
+                  : ""
+              }
+              startIso={calendarRange?.startIso ?? null}
+              endIso={calendarRange?.endIso ?? null}
+            />
           </div>
         </footer>
       </CoverGate>

@@ -185,7 +185,10 @@ export interface RsvpRow {
 
 /**
  * Baris tabel `guests` — daftar tamu yang diundang.
- * Tabelnya sudah ada di database tetapi belum dipakai aplikasi ini.
+ *
+ * Dipakai panel `/admin/undangan/[slug]` untuk membuat tautan personal
+ * (`?to=nama.a1b2c3`) dan melacak siapa yang belum menjawab. Tabelnya tertutup
+ * bagi anon key: hanya service role yang boleh membacanya.
  */
 export interface GuestRow {
   id: string;

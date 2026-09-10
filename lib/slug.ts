@@ -72,3 +72,28 @@ export function generateSlugFromNames(
   // lolos hanya nama tunggal berhuruf sedikit, mis. "Li" → "li" (2 karakter).
   return joined.length >= 3 ? joined : FALLBACK_SLUG;
 }
+
+/** Panjang maksimal slug nama tamu, agar tautan personal tetap ringkas. */
+const MAX_FULL_NAME_SLUG = 48;
+
+/**
+ * Menyusun slug dari SATU nama utuh, dengan setiap kata dipertahankan.
+ *
+ * "Bapak Andi Wijaya" → "bapak-andi-wijaya".
+ *
+ * Berbeda dengan `generateSlugFromNames()` yang sengaja memangkas nama menjadi
+ * kata pertama saja: slug undangan harus pendek dan mudah diucapkan, sedangkan
+ * tautan tamu harus bisa dikenali penerimanya. Aturan penyaringan hurufnya tetap
+ * sama (`toAscii`), jadi keduanya tidak pernah menghasilkan karakter berbeda.
+ */
+export function slugifyFullName(fullName: string): string {
+  return fullName
+    .trim()
+    .split(/\s+/)
+    .map(toAscii)
+    .filter(Boolean)
+    .join("-")
+    .slice(0, MAX_FULL_NAME_SLUG)
+    // Pemangkasan bisa menyisakan tanda hubung menggantung di ujung.
+    .replace(/-+$/, "");
+}

@@ -15,10 +15,19 @@ export const PHOTO_BUCKET = "invitation-photos";
 
 /**
  * Batas ukuran satu foto.
- * Harus sama dengan `file_size_limit` bucket — nilai di sini hanya untuk
- * memberi pesan error yang cepat & ramah sebelum file dikirim.
+ *
+ * Bucket-nya sendiri kini berbatas 8 MB karena harus menampung musik juga —
+ * lihat `supabase/storage-setup.sql`. Angka 5 MB di sini adalah batas khusus
+ * foto, ditegakkan sebelum berkas dikirim.
  */
 export const MAX_PHOTO_BYTES = 5 * 1024 * 1024;
+
+/**
+ * Batas ukuran berkas musik latar.
+ * Harus sama dengan `file_size_limit` bucket — inilah berkas terbesar yang
+ * boleh masuk, jadi angkanya yang menentukan batas bucket.
+ */
+export const MAX_AUDIO_BYTES = 8 * 1024 * 1024;
 
 /** Format gambar yang diterima; harus sama dengan `allowed_mime_types` bucket. */
 export const ACCEPTED_PHOTO_TYPES = [
@@ -27,6 +36,20 @@ export const ACCEPTED_PHOTO_TYPES = [
   "image/webp",
   "image/avif",
   "image/gif",
+] as const;
+
+/**
+ * Format musik yang diterima; harus sama dengan `allowed_mime_types` bucket.
+ *
+ * Tiga ini cukup: MP3 (`audio/mpeg`) yang dipakai hampir semua orang, M4A/AAC
+ * (`audio/mp4`) yang keluar dari perangkat Apple, dan OGG. Format lain sengaja
+ * ditolak — bukan karena tidak bisa diputar, tetapi karena daftar ini harus
+ * sama persis dengan yang diizinkan bucket.
+ */
+export const ACCEPTED_AUDIO_TYPES = [
+  "audio/mpeg",
+  "audio/mp4",
+  "audio/ogg",
 ] as const;
 
 /** Jenis foto, dipakai sebagai awalan nama berkas agar mudah dikenali. */
@@ -55,6 +78,9 @@ const EXTENSIONS: Record<string, string> = {
   "image/webp": "webp",
   "image/avif": "avif",
   "image/gif": "gif",
+  "audio/mpeg": "mp3",
+  "audio/mp4": "m4a",
+  "audio/ogg": "ogg",
 };
 
 export function formatMegabytes(bytes: number): string {
@@ -90,22 +116,65 @@ export function validatePhotoFile(file: File): string | null {
 }
 
 /**
+ * Nama folder undangan di dalam bucket.
+ *
+ * Slug disaring dengan pola ketat, jadi path yang dibangun di atasnya tidak
+ * pernah bisa keluar dari foldernya sendiri walau slug-nya datang dari luar.
+ * Slug yang belum diisi (form yang masih kosong) memakai folder `draft`.
+ */
+function safeFolder(slug: string): string {
+  return slug.length > 0 && /^[a-z0-9-]+$/.test(slug) ? slug : "draft";
+}
+
+/**
  * Menyusun path objek di dalam bucket: `<slug>/<jenis>-<acak>.<ekstensi>`.
  *
  * Nama berkas asli sengaja dibuang — namanya bisa memuat spasi, unicode, atau
  * karakter yang tidak valid sebagai key Storage, dan dua admin bisa mengunggah
- * berkas dengan nama sama. Slug yang belum diisi memakai folder `draft`.
- *
- * Slug disaring dengan pola ketat, jadi path hasil fungsi ini tidak pernah bisa
- * keluar dari foldernya sendiri walau slug-nya datang dari luar.
+ * berkas dengan nama sama.
  */
 export function buildPhotoPath(
   kind: PhotoKind,
   slug: string,
   mimeType: string
 ): string {
-  const folder = slug.length > 0 && /^[a-z0-9-]+$/.test(slug) ? slug : "draft";
   const extension = EXTENSIONS[mimeType] ?? "jpg";
 
-  return `${folder}/${kind}-${crypto.randomUUID()}.${extension}`;
+  return `${safeFolder(slug)}/${kind}-${crypto.randomUUID()}.${extension}`;
+}
+
+/** Apakah MIME type ini termasuk format musik yang diterima. */
+export function isAcceptedAudioType(value: string): boolean {
+  return (ACCEPTED_AUDIO_TYPES as readonly string[]).includes(value);
+}
+
+/**
+ * Memeriksa satu berkas musik sebelum diunggah.
+ * Mengembalikan pesan error, atau `null` bila berkasnya lolos.
+ */
+export function validateAudioFile(file: File): string | null {
+  if (!isAcceptedAudioType(file.type)) {
+    return `"${file.name}" bukan berkas musik yang didukung. Gunakan MP3, M4A, atau OGG.`;
+  }
+
+  if (file.size > MAX_AUDIO_BYTES) {
+    return `"${file.name}" berukuran ${formatMegabytes(
+      file.size
+    )}, melebihi batas ${formatMegabytes(MAX_AUDIO_BYTES)}.`;
+  }
+
+  return null;
+}
+
+/**
+ * Path berkas musik: `<slug>/music-<acak>.<ekstensi>`.
+ *
+ * Sengaja memakai nama acak, bukan `music.mp3` yang tetap: mengganti lagu
+ * undangan yang sudah tayang tidak boleh mengubah berkas yang sedang diputar
+ * di HP tamu, dan tidak boleh gagal karena berkas dengan nama itu sudah ada.
+ */
+export function buildAudioPath(slug: string, mimeType: string): string {
+  const extension = EXTENSIONS[mimeType] ?? "mp3";
+
+  return `${safeFolder(slug)}/music-${crypto.randomUUID()}.${extension}`;
 }

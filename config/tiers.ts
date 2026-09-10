@@ -332,12 +332,16 @@ export const COMPARISON_GROUPS: FeatureGroup[] = [
     ],
   },
   {
-    title: "Belum Tersedia",
+    title: "Suasana",
     rows: [
       {
         label: "Musik latar pilihan sendiri",
-        note: "sudah disiapkan di data paket VIP, pemutarnya masih dikembangkan",
-        cells: sameForAll("Belum tersedia", false),
+        note: "unggah MP3 sendiri; musik mulai saat tamu menekan \"Buka Undangan\"",
+        cells: flag(
+          (tier) => TIER_FEATURES[tier].customMusic,
+          "Unggah MP3 sendiri",
+          "Tidak termasuk"
+        ),
       },
     ],
   },

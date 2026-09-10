@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 
 import { getEventLabel } from "@/config/events";
 import { TIERS, canUseTheme, getTierFeatures } from "@/config/themes";
@@ -12,18 +13,40 @@ import type {
 } from "@/lib/form-state";
 import { MAX_PAYMENT_ACCOUNTS } from "@/lib/form-state";
 import {
+  deleteInvitationRow,
   ensureUniqueSlug,
   getInvitationBySlug,
   insertInvitation,
+  updateInvitationRow,
 } from "@/lib/invitation";
 import { generateSlugFromNames } from "@/lib/slug";
+import { deleteInvitationFiles } from "@/lib/storage-admin";
 import { getSupabase } from "@/lib/supabase";
 import type {
+  InvitationRow,
   PaymentAccount,
   PaymentData,
   RsvpStatus,
   WeddingEvent,
 } from "@/types/invitation";
+
+/**
+ * Isi undangan yang berasal dari form admin — semua kolom kecuali `slug`.
+ *
+ * `slug` dikecualikan karena hanya dibuat sekali saat undangan lahir; setelah
+ * itu ia adalah alamat yang sudah tersebar ke tamu dan tidak boleh ikut berubah.
+ */
+type InvitationPayload = Pick<
+  InvitationRow,
+  | "tier"
+  | "theme_id"
+  | "groom_data"
+  | "bride_data"
+  | "event_data"
+  | "payment_data"
+  | "theme_config"
+  | "music_url"
+>;
 
 const RSVP_STATUSES: RsvpStatus[] = ["attending", "declined"];
 
@@ -258,21 +281,18 @@ function parsePaymentAccounts(
 }
 
 /**
- * Membuat undangan baru di tabel `invitations`.
+ * Membaca & memvalidasi seluruh field form undangan.
  *
- * KEAMANAN: `requireAdmin()` dipanggil di baris pertama, bukan hanya diandalkan
- * pada `proxy.ts`. Dokumentasi Next menegaskan proxy bukan lapis otorisasi —
- * "Always verify authentication and authorization inside each Server Function"
- * — karena Server Action bisa dipanggil lewat POST langsung tanpa melewati UI,
- * dan cakupan proxy bisa hilang bila matcher-nya diubah. Penulisan barisnya
- * sendiri memakai service role, sementara RLS menutup jalur anon key.
+ * Dipakai bersama oleh `createInvitation()` dan `updateInvitation()`. Sengaja
+ * satu fungsi: dua salinan aturan validasi pasti akan berbeda cepat atau lambat,
+ * dan yang lebih longgar akan menjadi pintu masuk data yang tidak valid.
+ *
+ * Yang TIDAK dihasilkan di sini adalah `slug` — hanya dibuat saat undangan baru,
+ * dan tidak pernah ikut berubah saat diperbarui.
  */
-export async function createInvitation(
-  _prevState: CreateInvitationState,
+function parseInvitationForm(
   formData: FormData
-): Promise<CreateInvitationState> {
-  await requireAdmin();
-
+): { payload: InvitationPayload } | { error: string } {
   const tier = readString(formData, "tier") as TierType;
   const themeId = readString(formData, "themeId");
   const groomName = readString(formData, "groomName");
@@ -287,92 +307,65 @@ export async function createInvitation(
   const bridePhotoUrl = readString(formData, "bridePhotoUrl");
   const coverPhotoUrl = readString(formData, "coverPhotoUrl");
   const galleryUrlsRaw = readStringList(formData, "galleryUrls");
+  const musicUrl = readString(formData, "musicUrl");
   const tradition = readString(formData, "tradition");
   const region = readString(formData, "region");
 
   if (!TIERS.includes(tier)) {
-    return { status: "error", message: "Paket tidak valid." };
+    return { error: "Paket tidak valid." };
   }
+
+  const features = getTierFeatures(tier);
 
   // Gerbang paket: tema Premium/VIP tidak boleh dipasang di undangan Silver.
   if (!canUseTheme(tier, themeId)) {
-    return {
-      status: "error",
-      message: `Tema "${themeId}" tidak tersedia untuk paket ${tier}.`,
-    };
+    return { error: `Tema "${themeId}" tidak tersedia untuk paket ${tier}.` };
   }
 
   if (groomName.length < 2 || brideName.length < 2) {
-    return {
-      status: "error",
-      message: "Nama kedua mempelai wajib diisi.",
-    };
+    return { error: "Nama kedua mempelai wajib diisi." };
   }
-
-  // Slug tidak lagi diketik admin: disusun dari nama mempelai, lalu diberi
-  // nomor urut bila sudah terpakai. Form menampilkan pratinjaunya memakai
-  // `generateSlugFromNames()` yang sama, jadi yang tampil = yang tersimpan
-  // (kecuali nomor urut, yang baru diketahui setelah dicek ke database).
-  const slug = await ensureUniqueSlug(
-    generateSlugFromNames(groomName, brideName)
-  );
 
   const eventLabel = getEventLabel(eventName);
 
   if (!eventLabel) {
-    return { status: "error", message: "Jenis acara tidak valid." };
+    return { error: "Jenis acara tidak valid." };
   }
 
   if (!DATE_PATTERN.test(eventDate)) {
-    return { status: "error", message: "Tanggal acara wajib diisi." };
+    return { error: "Tanggal acara wajib diisi." };
   }
 
   if (!TIME_PATTERN.test(eventTime)) {
-    return { status: "error", message: "Waktu acara wajib diisi." };
+    return { error: "Waktu acara wajib diisi." };
   }
 
   if (venueName.length < 2 || address.length < 5) {
-    return {
-      status: "error",
-      message: "Nama tempat dan alamat acara wajib diisi.",
-    };
+    return { error: "Nama tempat dan alamat acara wajib diisi." };
   }
 
   if (mapsUrl && !/^https?:\/\//.test(mapsUrl)) {
-    return {
-      status: "error",
-      message: "Link Maps harus dimulai dengan http:// atau https://",
-    };
+    return { error: "Link Maps harus dimulai dengan http:// atau https://" };
   }
 
   const groomPhoto = validatePhotoUrl(groomPhotoUrl, "Foto mempelai pria");
-  if (groomPhoto.error) {
-    return { status: "error", message: groomPhoto.error };
-  }
+  if (groomPhoto.error) return { error: groomPhoto.error };
 
   const bridePhoto = validatePhotoUrl(bridePhotoUrl, "Foto mempelai wanita");
-  if (bridePhoto.error) {
-    return { status: "error", message: bridePhoto.error };
-  }
+  if (bridePhoto.error) return { error: bridePhoto.error };
 
   const coverPhoto = validatePhotoUrl(coverPhotoUrl, "Foto sampul");
-  if (coverPhoto.error) {
-    return { status: "error", message: coverPhoto.error };
-  }
+  if (coverPhoto.error) return { error: coverPhoto.error };
 
   // Kuota foto galeri ditentukan paket, bukan form — jadi dibaca dari config.
-  const gallery = parseGalleryUrls(
-    galleryUrlsRaw,
-    getTierFeatures(tier).maxPhotos
-  );
-  if (gallery.error) {
-    return { status: "error", message: gallery.error };
-  }
+  const gallery = parseGalleryUrls(galleryUrlsRaw, features.maxPhotos);
+  if (gallery.error) return { error: gallery.error };
+
+  const music = validatePhotoUrl(musicUrl, "Musik latar");
+  if (music.error) return { error: music.error };
 
   const payment = parsePaymentAccounts(formData);
-  if (payment.error) {
-    return { status: "error", message: payment.error };
-  }
+  if (payment.error) return { error: payment.error };
 
   const event: WeddingEvent = {
     name: eventName,
@@ -389,29 +382,69 @@ export async function createInvitation(
   const paymentData: PaymentData =
     payment.accounts.length > 0 ? { accounts: payment.accounts } : {};
 
-  const { error } = await insertInvitation({
-    slug,
-    tier,
-    theme_id: themeId,
-    groom_data: {
-      fullName: groomName,
-      nickName: toNickName(groomName),
-      ...(groomPhoto.url ? { photo_url: groomPhoto.url } : {}),
+  return {
+    payload: {
+      tier,
+      theme_id: themeId,
+      groom_data: {
+        fullName: groomName,
+        nickName: toNickName(groomName),
+        ...(groomPhoto.url ? { photo_url: groomPhoto.url } : {}),
+      },
+      bride_data: {
+        fullName: brideName,
+        nickName: toNickName(brideName),
+        ...(bridePhoto.url ? { photo_url: bridePhoto.url } : {}),
+      },
+      event_data: {
+        events: [event],
+        ...(coverPhoto.url ? { cover_photo_url: coverPhoto.url } : {}),
+        ...(gallery.urls.length > 0 ? { gallery_urls: gallery.urls } : {}),
+      },
+      payment_data: paymentData,
+      theme_config: tradition ? { tradition, region } : {},
+      // Musik hanya milik paket VIP. Ditegakkan di sini, bukan hanya dengan
+      // menyembunyikan field-nya di form: Server Action bisa dipanggil lewat
+      // POST langsung, jadi field yang tidak tampil tetap bisa dikirim.
+      music_url: features.customMusic ? music.url ?? null : null,
     },
-    bride_data: {
-      fullName: brideName,
-      nickName: toNickName(brideName),
-      ...(bridePhoto.url ? { photo_url: bridePhoto.url } : {}),
-    },
-    event_data: {
-      events: [event],
-      ...(coverPhoto.url ? { cover_photo_url: coverPhoto.url } : {}),
-      ...(gallery.urls.length > 0 ? { gallery_urls: gallery.urls } : {}),
-    },
-    payment_data: paymentData,
-    theme_config: tradition ? { tradition, region } : {},
-    music_url: null,
-  });
+  };
+}
+
+/**
+ * Membuat undangan baru di tabel `invitations`.
+ *
+ * KEAMANAN: `requireAdmin()` dipanggil di baris pertama, bukan hanya diandalkan
+ * pada `proxy.ts`. Dokumentasi Next menegaskan proxy bukan lapis otorisasi —
+ * "Always verify authentication and authorization inside each Server Function"
+ * — karena Server Action bisa dipanggil lewat POST langsung tanpa melewati UI,
+ * dan cakupan proxy bisa hilang bila matcher-nya diubah. Penulisan barisnya
+ * sendiri memakai service role, sementara RLS menutup jalur anon key.
+ */
+export async function createInvitation(
+  _prevState: CreateInvitationState,
+  formData: FormData
+): Promise<CreateInvitationState> {
+  await requireAdmin();
+
+  const parsed = parseInvitationForm(formData);
+
+  if ("error" in parsed) {
+    return { status: "error", message: parsed.error };
+  }
+
+  // Slug tidak lagi diketik admin: disusun dari nama mempelai, lalu diberi
+  // nomor urut bila sudah terpakai. Form menampilkan pratinjaunya memakai
+  // `generateSlugFromNames()` yang sama, jadi yang tampil = yang tersimpan
+  // (kecuali nomor urut, yang baru diketahui setelah dicek ke database).
+  const slug = await ensureUniqueSlug(
+    generateSlugFromNames(
+      parsed.payload.groom_data.fullName,
+      parsed.payload.bride_data.fullName
+    )
+  );
+
+  const { error } = await insertInvitation({ slug, ...parsed.payload });
 
   if (error) {
     return { status: "error", message: error };
@@ -425,4 +458,120 @@ export async function createInvitation(
     message: `Undangan "${slug}" berhasil dibuat.`,
     slug,
   };
+}
+
+/**
+ * Memperbarui undangan yang sudah ada.
+ *
+ * Aturan validasinya sama persis dengan `createInvitation()` karena keduanya
+ * memakai `parseInvitationForm()` — itulah alasan bagian validasi diangkat ke
+ * satu fungsi bersama. Dua salinan aturan akan berbeda cepat atau lambat, dan
+ * yang longgar akan menjadi pintu masuk data yang tidak valid.
+ *
+ * `slug` TIDAK ikut berubah. Tautannya sudah tersebar ke tamu lewat WhatsApp
+ * dan tidak ada pengalihan di aplikasi ini, jadi mengganti slug sama dengan
+ * mematikan semua undangan yang terlanjur dikirim.
+ */
+export async function updateInvitation(
+  _prevState: CreateInvitationState,
+  formData: FormData
+): Promise<CreateInvitationState> {
+  await requireAdmin();
+
+  const slug = readString(formData, "slug");
+  const invitation = await getInvitationBySlug(slug);
+
+  if (!invitation) {
+    return { status: "error", message: "Undangan tidak ditemukan." };
+  }
+
+  const parsed = parseInvitationForm(formData);
+
+  if ("error" in parsed) {
+    return { status: "error", message: parsed.error };
+  }
+
+  /**
+   * Form admin hanya memuat SATU acara, sedangkan sebuah undangan bisa punya
+   * akad + resepsi bila datanya dibuat dari luar aplikasi ini. Acara pertama
+   * ditimpa, sisanya dipertahankan — menyimpan hasil form apa adanya akan
+   * menghapus acara kedua tanpa pernah menampilkannya lebih dulu.
+   */
+  const existingEvents = invitation.event_data?.events ?? [];
+
+  const { error } = await updateInvitationRow(invitation.id, {
+    ...parsed.payload,
+    event_data: {
+      ...parsed.payload.event_data,
+      events: [
+        parsed.payload.event_data.events[0],
+        ...existingEvents.slice(1),
+      ],
+    },
+  });
+
+  if (error) {
+    return { status: "error", message: error };
+  }
+
+  revalidatePath("/admin");
+  revalidatePath(`/admin/undangan/${slug}`);
+  revalidatePath(`/${slug}`);
+
+  return {
+    status: "success",
+    message: `Undangan "${slug}" berhasil diperbarui.`,
+    slug,
+  };
+}
+
+/**
+ * Menghapus undangan beserta seluruh data & fotonya.
+ *
+ * Konfirmasinya berupa ketik-ulang slug, bukan sekadar dialog "yakin?".
+ * Penghapusan di sini tidak bisa dibatalkan dan ikut membawa RSVP, ucapan, dan
+ * daftar tamu — sebuah salah klik seharusnya tidak cukup untuk memicunya.
+ */
+export async function deleteInvitation(
+  _prevState: CreateInvitationState,
+  formData: FormData
+): Promise<CreateInvitationState> {
+  await requireAdmin();
+
+  const slug = readString(formData, "slug");
+  const confirmSlug = readString(formData, "confirmSlug");
+
+  if (confirmSlug !== slug) {
+    return {
+      status: "error",
+      message: `Ketik "${slug}" persis untuk mengonfirmasi penghapusan.`,
+    };
+  }
+
+  const invitation = await getInvitationBySlug(slug);
+
+  if (!invitation) {
+    return { status: "error", message: "Undangan tidak ditemukan." };
+  }
+
+  const { error } = await deleteInvitationRow(invitation.id);
+
+  if (error) {
+    return { status: "error", message: error };
+  }
+
+  // Foto dibersihkan SETELAH barisnya hilang. Urutan ini disengaja: berkas yang
+  // tertinggal hanya memakan ruang, sedangkan baris yang tertinggal berarti
+  // undangan yang tetap bisa dibuka padahal fotonya sudah lenyap.
+  const cleanup = await deleteInvitationFiles(slug);
+
+  if (cleanup.error) {
+    console.error("[invitation] Sisa berkas gagal dihapus:", cleanup.error);
+  }
+
+  revalidatePath("/admin");
+  revalidatePath(`/${slug}`);
+
+  // Halaman pengelola undangan ini sudah tidak ada isinya lagi.
+  redirect("/admin");
 }

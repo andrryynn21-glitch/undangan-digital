@@ -80,6 +80,8 @@ interface PhotoUploadProps {
   kind: PhotoKind;
   /** Slug undangan; menentukan folder penyimpanan di bucket */
   slug: string;
+  /** Foto yang sudah tersimpan, saat form dipakai untuk mengubah undangan */
+  initialUrl?: string;
 }
 
 /** Pemilih satu foto (mempelai pria/wanita, atau sampul). */
@@ -89,8 +91,9 @@ export function PhotoUpload({
   hint,
   kind,
   slug,
+  initialUrl = "",
 }: PhotoUploadProps) {
-  const [url, setUrl] = useState("");
+  const [url, setUrl] = useState(initialUrl);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
@@ -163,6 +166,8 @@ interface PhotoUploadMultiProps {
   /** Kuota foto paket terpilih (`getTierFeatures(tier).maxPhotos`) */
   maxPhotos: number;
   slug: string;
+  /** Galeri yang sudah tersimpan, saat form dipakai untuk mengubah undangan */
+  initialUrls?: string[];
 }
 
 /** Pemilih banyak foto untuk galeri kenangan. */
@@ -171,8 +176,9 @@ export function PhotoUploadMulti({
   label,
   maxPhotos,
   slug,
+  initialUrls,
 }: PhotoUploadMultiProps) {
-  const [urls, setUrls] = useState<string[]>([]);
+  const [urls, setUrls] = useState<string[]>(initialUrls ?? []);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 

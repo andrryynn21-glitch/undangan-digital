@@ -153,3 +153,43 @@ export function formatDateTime(isoText: string): string {
     timeZone: "Asia/Jakarta",
   }).format(date);
 }
+
+/** Lama acara bila undangan tidak menyebutkan jam selesai. */
+const DEFAULT_EVENT_HOURS = 3;
+
+/**
+ * Rentang waktu acara untuk keperluan kalender (Google Calendar / berkas .ics).
+ *
+ * Jam selesai sering tidak diisi — form admin memang hanya meminta jam mulai.
+ * Entri kalender tetap butuh keduanya, jadi durasi {@link DEFAULT_EVENT_HOURS}
+ * jam dipakai sebagai perkiraan. Ini asumsi yang disengaja: entri kalender yang
+ * durasinya kira-kira jauh lebih berguna daripada tidak ada entri sama sekali,
+ * dan tamu bisa menyesuaikannya sendiri setelah tersimpan.
+ *
+ * Keduanya dikembalikan sebagai ISO UTC agar aman dilewatkan dari server ke
+ * komponen klien tanpa bergantung zona waktu mesin yang merender.
+ */
+export function getCalendarRange(
+  event: WeddingEvent
+): { startIso: string; endIso: string } | null {
+  const start = parseEventStart(event);
+
+  if (!start) return null;
+
+  const end = event.endTime
+    ? parseEventStart({ ...event, startTime: event.endTime })
+    : null;
+
+  // Jam selesai yang lebih awal dari jam mulai berarti acaranya melewati tengah
+  // malam — atau datanya salah ketik. Keduanya lebih baik jatuh ke durasi
+  // bawaan daripada menghasilkan entri kalender bermula setelah selesai.
+  const usable = end && end.getTime() > start.getTime() ? end : null;
+
+  return {
+    startIso: start.toISOString(),
+    endIso: (
+      usable ??
+      new Date(start.getTime() + DEFAULT_EVENT_HOURS * 60 * 60 * 1000)
+    ).toISOString(),
+  };
+}

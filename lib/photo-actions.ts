@@ -3,7 +3,9 @@
 import { verifyAdminSession } from "@/lib/auth-session";
 import {
   PHOTO_BUCKET,
+  buildAudioPath,
   buildPhotoPath,
+  isAcceptedAudioType,
   isAcceptedPhotoType,
   isPhotoKind,
 } from "@/lib/photo-rules";
@@ -71,6 +73,58 @@ export async function createPhotoUploadTicket(
     // artinya service role key ikut tercetak di layar admin. Pesan aslinya
     // dicatat di log server, yang dikirim ke browser hanya petunjuk umum.
     console.error("[photo-ticket] Gagal menerbitkan tiket unggah:", error);
+
+    return {
+      error:
+        "Server belum siap menerima unggahan. Periksa konfigurasi Supabase di " +
+        "server (lihat log), lalu coba lagi.",
+    };
+  }
+}
+
+/**
+ * Penerbit tiket unggah musik latar.
+ *
+ * Jalurnya sama persis dengan foto — sesi admin diverifikasi, path disusun di
+ * server, token sekali pakai diterbitkan dengan service role — hanya jenis
+ * berkas dan penamaannya yang berbeda. Sengaja tidak digabung menjadi satu
+ * fungsi bergaya "kind bebas": memisahkannya membuat daftar MIME yang boleh
+ * masuk tetap dua daftar tertutup, bukan satu daftar gabungan yang tanpa
+ * sengaja mengizinkan MP3 diunggah sebagai foto sampul.
+ */
+export async function createAudioUploadTicket(
+  slug: string,
+  mimeType: string
+): Promise<PhotoUploadTicket> {
+  if (!(await verifyAdminSession())) {
+    return {
+      error:
+        "Sesi admin sudah berakhir. Muat ulang halaman ini lalu login kembali.",
+    };
+  }
+
+  if (!isAcceptedAudioType(mimeType)) {
+    return {
+      error: "Jenis berkas ini tidak didukung. Gunakan MP3, M4A, atau OGG.",
+    };
+  }
+
+  try {
+    const path = buildAudioPath(slug, mimeType);
+
+    const { data, error } = await getSupabaseAdmin()
+      .storage.from(PHOTO_BUCKET)
+      .createSignedUploadUrl(path);
+
+    if (error) {
+      return { error: `Gagal menyiapkan unggahan: ${error.message}` };
+    }
+
+    return { path: data.path, token: data.token };
+  } catch (error) {
+    // Sama seperti di atas: pesan aslinya bisa memuat isi env var, jadi hanya
+    // dicatat di log server.
+    console.error("[audio-ticket] Gagal menerbitkan tiket unggah:", error);
 
     return {
       error:

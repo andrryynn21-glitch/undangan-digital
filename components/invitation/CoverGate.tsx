@@ -7,6 +7,7 @@ import type { CSSProperties, ReactNode } from "react";
 import type { FrameStyle } from "@/config/themes";
 import { CornerFrame, Divider, Monogram } from "@/components/invitation/decor";
 import type { DecorLevel } from "@/components/invitation/decor";
+import MusicPlayer from "@/components/invitation/MusicPlayer";
 
 interface CoverGateProps {
   /** Nama panggilan mempelai pria */
@@ -19,6 +20,17 @@ interface CoverGateProps {
   dateText?: string;
   /** Foto sampul dari `event_data.cover_photo_url` */
   coverPhotoUrl?: string;
+  /**
+   * Nama tamu dari tautan personal (`?to=`). Bila ada, sampul menyapa tamunya
+   * dengan "Kepada Yth."; bila tidak, sampul tampil seperti undangan biasa.
+   */
+  guestName?: string;
+  /**
+   * Musik latar (paket VIP). Diserahkan ke sini, bukan dirender halaman,
+   * karena pemutarannya harus dimulai oleh ketukan "Buka Undangan" — browser
+   * menolak audio yang berbunyi sendiri tanpa gestur pengguna.
+   */
+  musicUrl?: string | null;
   frameStyle: FrameStyle;
   level: DecorLevel;
   /** Isi undangan yang tersembunyi sampai sampul dibuka */
@@ -39,6 +51,8 @@ export default function CoverGate({
   eyebrow = "Undangan Pernikahan",
   dateText,
   coverPhotoUrl,
+  guestName,
+  musicUrl,
   frameStyle,
   level,
   children,
@@ -82,6 +96,10 @@ export default function CoverGate({
   return (
     <>
       <div className={opened ? "inv-reveal" : ""}>{children}</div>
+
+      {/* Musik menyusul ketukan "Buka Undangan", satu-satunya gestur yang
+          dijamin ada sebelum tamu melihat isi undangan. */}
+      <MusicPlayer src={musicUrl} active={opened} />
 
       <div
         aria-hidden={opened}
@@ -170,6 +188,25 @@ export default function CoverGate({
             >
               {dateText}
             </p>
+          ) : null}
+
+          {/* Sapaan personal. Hanya muncul bila undangan dibuka lewat tautan
+              per tamu — tanpa itu, sampul tidak berubah sedikit pun. */}
+          {guestName ? (
+            <div className="flex flex-col items-center gap-1" style={textStyle}>
+              <p className="text-[0.62rem] uppercase tracking-[0.32em] opacity-70">
+                Kepada Yth.
+              </p>
+              <p
+                className="max-w-[16rem] text-base leading-snug font-medium break-words"
+                style={{ fontFamily: "var(--theme-font-heading)" }}
+              >
+                {guestName}
+              </p>
+              <p className="text-[0.66rem] tracking-[0.14em] opacity-65">
+                di tempat
+              </p>
+            </div>
           ) : null}
 
           <button

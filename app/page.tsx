@@ -1,4 +1,22 @@
+import type { Metadata } from "next";
 import Image from "next/image";
+
+/**
+ * Halaman depan memakai judul & deskripsi bawaan dari `app/layout.tsx`, jadi di
+ * sini hanya `openGraph` yang perlu ditambahkan — agar tautannya tampil sebagai
+ * kartu, bukan URL polos, ketika dibagikan ke calon klien.
+ */
+export const metadata: Metadata = {
+  openGraph: {
+    title: "Undangan Digital — Undangan Pernikahan Online",
+    description:
+      "Undangan pernikahan digital yang bisa dibagikan lewat WhatsApp: hitung mundur, galeri foto, konfirmasi kehadiran, buku ucapan, dan amplop digital.",
+    type: "website",
+    locale: "id_ID",
+    url: "/",
+  },
+  twitter: { card: "summary" },
+};
 
 export default function Home() {
   return (

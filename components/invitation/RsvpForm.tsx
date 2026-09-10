@@ -24,6 +24,13 @@ interface RsvpFormProps {
   slug: string;
   /** Dari `getTierFeatures(tier).rsvpToDb` — paket Silver tidak menyimpan RSVP */
   enabled: boolean;
+  /**
+   * Nama tamu dari tautan personal (`?to=`), untuk mengisi kolom nama di muka.
+   * Tetap bisa diubah tamunya — nama di tautan bisa saja berbeda dari nama yang
+   * ingin ia tuliskan sendiri — tapi mengisinya di muka membuat pencocokan
+   * dengan daftar undangan di dashboard jauh lebih sering tepat.
+   */
+  defaultName?: string;
   frameStyle: FrameStyle;
   level: DecorLevel;
 }
@@ -35,6 +42,7 @@ interface RsvpFormProps {
 export default function RsvpForm({
   slug,
   enabled,
+  defaultName,
   frameStyle,
   level,
 }: RsvpFormProps) {
@@ -111,6 +119,7 @@ export default function RsvpForm({
           required
           minLength={2}
           maxLength={80}
+          defaultValue={defaultName}
           placeholder="Nama Anda"
           className={FIELD_CLASS}
         />

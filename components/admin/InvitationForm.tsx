@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useActionState, useRef, useState } from "react";
 
+import MusicUpload from "@/components/admin/MusicUpload";
 import {
   PhotoUpload,
   PhotoUploadMulti,
@@ -16,12 +17,13 @@ import {
 } from "@/config/themes";
 import type { TierType } from "@/config/themes";
 import { TRADITION_LIST } from "@/config/cultures";
-import { createInvitation } from "@/lib/actions";
+import { createInvitation, updateInvitation } from "@/lib/actions";
 import { generateSlugFromNames } from "@/lib/slug";
 import {
   CREATE_INVITATION_INITIAL_STATE,
   MAX_PAYMENT_ACCOUNTS,
 } from "@/lib/form-state";
+import type { InvitationRow, PaymentAccount } from "@/types/invitation";
 
 const TIER_LABELS: Record<TierType, string> = {
   silver: "Silver",
@@ -34,6 +36,32 @@ const THEMES = getAllThemes();
 // `w-full min-w-0` mencegah input melebar keluar grid pada layar sempit.
 const fieldClass =
   "w-full min-w-0 rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 outline-none focus:border-zinc-500 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-100";
+
+/**
+ * Mengubah jam tersimpan ("19.00 WIB") menjadi nilai `<input type="time">`
+ * ("19:00").
+ *
+ * Bentuk simpanannya sengaja berbeda dari bentuk input: yang tersimpan adalah
+ * teks yang langsung ditampilkan ke tamu, lengkap dengan zona waktu.
+ */
+function toTimeInput(startTime: string | undefined): string {
+  const match = /(\d{1,2})[.:](\d{2})/.exec(startTime ?? "");
+
+  return match ? `${match[1].padStart(2, "0")}:${match[2]}` : "";
+}
+
+/** Baris rekening di form; `id` hanya untuk `key` React, tidak ikut dikirim. */
+interface AccountRow extends PaymentAccount {
+  id: number;
+}
+
+function toAccountRows(accounts: PaymentAccount[]): AccountRow[] {
+  if (accounts.length === 0) {
+    return [{ id: 0, bank: "", number: "", holder: "" }];
+  }
+
+  return accounts.map((account, index) => ({ id: index, ...account }));
+}
 
 function Field({
   label,
@@ -87,50 +115,106 @@ function Group({
   );
 }
 
-/** Form pembuatan undangan baru. */
-export default function InvitationForm() {
+interface InvitationFormProps {
+  /**
+   * Undangan yang sedang diubah. Bila kosong, form bekerja seperti semula:
+   * membuat undangan baru.
+   */
+  initial?: InvitationRow;
+}
+
+/**
+ * Form undangan — dipakai untuk membuat maupun mengubah.
+ *
+ * Satu komponen untuk dua keperluan, bukan dua komponen kembar: aturan paket,
+ * kuota foto, dan daftar tema di sini cukup rumit sehingga dua salinan akan
+ * berbeda perilaku begitu salah satunya disesuaikan.
+ */
+export default function InvitationForm({ initial }: InvitationFormProps) {
+  const isEdit = Boolean(initial);
+
   const [state, formAction, pending] = useActionState(
-    createInvitation,
+    isEdit ? updateInvitation : createInvitation,
     CREATE_INVITATION_INITIAL_STATE
   );
 
+  const firstEvent = initial?.event_data?.events?.[0];
+
   // Tier dipantau di klien supaya daftar tema langsung menyesuaikan.
-  const [tier, setTier] = useState<TierType>("silver");
+  const [tier, setTier] = useState<TierType>(initial?.tier ?? "silver");
 
   /**
    * Nama mempelai dipantau karena slug diturunkan darinya — pratinjau tautan
    * ikut berubah sambil admin mengetik, dan slug itu juga dipakai sebagai nama
    * folder foto di Storage. Selama masih kosong, foto masuk ke folder `draft/`.
    */
-  const [groomName, setGroomName] = useState("");
-  const [brideName, setBrideName] = useState("");
+  const [groomName, setGroomName] = useState(
+    initial?.groom_data.fullName ?? ""
+  );
+  const [brideName, setBrideName] = useState(
+    initial?.bride_data.fullName ?? ""
+  );
 
   const previewSlug = generateSlugFromNames(groomName, brideName);
+
+  /**
+   * Folder penyimpanan foto. Saat mengubah undangan, slug-nya sudah pasti dan
+   * tidak ikut berubah walau nama mempelai diperbaiki — jadi foto baru tetap
+   * masuk ke folder yang sama dengan foto lama undangan ini.
+   */
+  const uploadSlug = initial ? initial.slug : previewSlug;
 
   /**
    * Baris rekening dilacak lewat id, bukan sekadar jumlah — dengan key yang
    * stabil, menghapus satu baris tidak menggeser nilai input baris lain (semua
    * input di sini tak terkendali / uncontrolled).
    */
-  const [accountRows, setAccountRows] = useState<number[]>([0]);
-  const nextRowId = useRef(1);
+  const [accountRows, setAccountRows] = useState<AccountRow[]>(() =>
+    toAccountRows(initial?.payment_data?.accounts ?? [])
+  );
+  const nextRowId = useRef(accountRows.length);
 
   // Dipantau untuk menampilkan hint daerah yang sesuai tradisi terpilih.
-  const [tradition, setTradition] = useState("modern");
+  const [tradition, setTradition] = useState(
+    typeof initial?.theme_config?.tradition === "string"
+      ? initial.theme_config.tradition
+      : "modern"
+  );
   const traditionEntry = TRADITION_LIST.find((t) => t.key === tradition) ?? TRADITION_LIST[0];
 
   const availableThemes = THEMES.filter((theme) =>
     isTierAllowed(tier, theme.tierRequirement)
   );
 
+  /**
+   * Tema jadi input terkendali supaya pindah paket tidak meninggalkan pilihan
+   * yang sudah terkunci. Tanpa ini, memilih tema VIP lalu menurunkan paket akan
+   * tetap mengirim tema VIP dan ditolak Server Action dengan pesan yang
+   * membingungkan — padahal daftarnya di layar sudah tidak memuat tema itu.
+   */
+  const [themeId, setThemeId] = useState(
+    initial?.theme_id ?? availableThemes[0].id
+  );
+
+  if (!availableThemes.some((theme) => theme.id === themeId)) {
+    setThemeId(availableThemes[0].id);
+  }
+
   const lockedThemes = THEMES.length - availableThemes.length;
-  const maxPhotos = getTierFeatures(tier).maxPhotos;
+  const features = getTierFeatures(tier);
+  const maxPhotos = features.maxPhotos;
 
   /**
-   * Dipakai sebagai `key` grup pemilih foto. Naik setiap kali ada undangan
-   * berhasil disimpan, sehingga React membuang state pratinjau lama.
+   * Dipakai sebagai `key` grup pemilih berkas. Pada mode buat, nilainya naik
+   * setiap kali undangan berhasil disimpan sehingga React membuang pratinjau
+   * lama. Pada mode ubah nilainya tetap: memasang ulang komponennya justru akan
+   * mengembalikan foto ke nilai props lama yang belum tentu sudah diperbarui.
    */
-  const resetKey = state.status === "success" ? state.slug : "form";
+  const resetKey = isEdit
+    ? "edit"
+    : state.status === "success"
+      ? state.slug
+      : "form";
 
   /**
    * Nama mempelai kini input terkendali, jadi React tidak lagi mengosongkannya
@@ -142,13 +226,16 @@ export default function InvitationForm() {
    * state ketika sesuatu berubah" di dokumentasi React: React langsung mengulang
    * render dengan nilai baru sebelum apa pun tampil di layar, jadi tidak ada
    * render berantai seperti pada effect.
+   *
+   * Hanya berlaku pada mode buat. Pada mode ubah, isi form memang harus tetap
+   * berdiri setelah disimpan.
    */
   const [handledState, setHandledState] = useState(state);
 
   if (state !== handledState) {
     setHandledState(state);
 
-    if (state.status === "success") {
+    if (!isEdit && state.status === "success") {
       setGroomName("");
       setBrideName("");
     }
@@ -158,18 +245,27 @@ export default function InvitationForm() {
     setAccountRows((rows) =>
       rows.length >= MAX_PAYMENT_ACCOUNTS
         ? rows
-        : [...rows, nextRowId.current++]
+        : [
+            ...rows,
+            { id: nextRowId.current++, bank: "", number: "", holder: "" },
+          ]
     );
   }
 
   function removeAccountRow(id: number) {
     setAccountRows((rows) =>
-      rows.length <= 1 ? rows : rows.filter((row) => row !== id)
+      rows.length <= 1 ? rows : rows.filter((row) => row.id !== id)
     );
   }
 
   return (
     <form action={formAction} className="flex flex-col gap-5">
+      {/* Penanda undangan yang diubah. Slug-nya tidak pernah ikut berubah —
+          Server Action memakainya hanya untuk mencari barisnya. */}
+      {initial ? (
+        <input type="hidden" name="slug" value={initial.slug} />
+      ) : null}
+
       <div className="grid gap-4 sm:grid-cols-2">
         <Field label="Paket">
           <select
@@ -194,7 +290,13 @@ export default function InvitationForm() {
               : undefined
           }
         >
-          <select name="themeId" required className={fieldClass}>
+          <select
+            name="themeId"
+            required
+            value={themeId}
+            onChange={(event) => setThemeId(event.target.value)}
+            className={fieldClass}
+          >
             {availableThemes.map((theme) => (
               <option key={theme.id} value={theme.id}>
                 {theme.name}
@@ -204,7 +306,12 @@ export default function InvitationForm() {
         </Field>
 
         <Field label="Jenis Acara">
-          <select name="eventName" required className={fieldClass}>
+          <select
+            name="eventName"
+            required
+            defaultValue={firstEvent?.name}
+            className={fieldClass}
+          >
             {EVENT_OPTIONS.map((option) => (
               <option key={option.name} value={option.name}>
                 {option.label}
@@ -240,11 +347,23 @@ export default function InvitationForm() {
         </Field>
 
         <Field label="Tanggal Acara">
-          <input type="date" name="eventDate" required className={fieldClass} />
+          <input
+            type="date"
+            name="eventDate"
+            required
+            defaultValue={firstEvent?.date}
+            className={fieldClass}
+          />
         </Field>
 
         <Field label="Waktu Acara" hint="WIB">
-          <input type="time" name="eventTime" required className={fieldClass} />
+          <input
+            type="time"
+            name="eventTime"
+            required
+            defaultValue={toTimeInput(firstEvent?.startTime)}
+            className={fieldClass}
+          />
         </Field>
       </div>
 
@@ -253,7 +372,16 @@ export default function InvitationForm() {
           yang baru ditambahkan bila slug-nya ternyata sudah dipakai. */}
       <div className="rounded-lg border border-zinc-200 bg-zinc-50 px-3.5 py-3 dark:border-zinc-800 dark:bg-zinc-900/50">
         <p className="text-xs font-medium text-zinc-500">Tautan undangan</p>
-        {previewSlug ? (
+
+        {initial ? (
+          <>
+            <p className="mt-1 truncate font-mono text-sm">/{initial.slug}</p>
+            <p className="mt-1 text-xs text-zinc-500">
+              Tautan tidak ikut berubah walau nama mempelai diperbaiki. Ini
+              disengaja: tautan yang sudah dikirim ke tamu harus tetap hidup.
+            </p>
+          </>
+        ) : previewSlug ? (
           <>
             <p className="mt-1 truncate font-mono text-sm">/{previewSlug}</p>
             <p className="mt-1 text-xs text-zinc-500">
@@ -274,6 +402,7 @@ export default function InvitationForm() {
           name="venueName"
           required
           minLength={2}
+          defaultValue={firstEvent?.venueName}
           placeholder="Gedung Serbaguna Melati"
           className={fieldClass}
         />
@@ -285,6 +414,7 @@ export default function InvitationForm() {
           required
           minLength={5}
           rows={2}
+          defaultValue={firstEvent?.address}
           placeholder="Jl. Merdeka No. 10, Bandung"
           className={`${fieldClass} resize-none`}
         />
@@ -294,6 +424,7 @@ export default function InvitationForm() {
         <input
           type="url"
           name="mapsUrl"
+          defaultValue={firstEvent?.mapsUrl}
           placeholder="https://maps.google.com/..."
           className={fieldClass}
         />
@@ -312,14 +443,16 @@ export default function InvitationForm() {
               name="groomPhotoUrl"
               label="Foto Mempelai Pria"
               kind="groom"
-              slug={previewSlug}
+              slug={uploadSlug}
+              initialUrl={initial?.groom_data.photo_url}
             />
 
             <PhotoUpload
               name="bridePhotoUrl"
               label="Foto Mempelai Wanita"
               kind="bride"
-              slug={previewSlug}
+              slug={uploadSlug}
+              initialUrl={initial?.bride_data.photo_url}
             />
           </div>
 
@@ -328,17 +461,37 @@ export default function InvitationForm() {
             label="Foto Sampul / Hero"
             hint="tampil di balik nama mempelai"
             kind="cover"
-            slug={previewSlug}
+            slug={uploadSlug}
+            initialUrl={initial?.event_data?.cover_photo_url}
           />
 
           <PhotoUploadMulti
             name="galleryUrls"
             label={`Foto Galeri — paket ${TIER_LABELS[tier]}`}
             maxPhotos={maxPhotos}
-            slug={previewSlug}
+            slug={uploadSlug}
+            initialUrls={initial?.event_data?.gallery_urls}
           />
         </div>
       </Group>
+
+      {/* Musik hanya ada di paket VIP. Ketika paketnya diturunkan, field ini
+          hilang dan Server Action ikut mengosongkan `music_url` — jadi tidak ada
+          undangan non-VIP yang diam-diam tetap memutar lagu. */}
+      {features.customMusic ? (
+        <Group
+          title="Musik Latar"
+          hint="mulai berbunyi saat tamu menekan “Buka Undangan”"
+        >
+          <div key={resetKey}>
+            <MusicUpload
+              name="musicUrl"
+              slug={uploadSlug}
+              initialUrl={initial?.music_url ?? ""}
+            />
+          </div>
+        </Group>
+      ) : null}
 
       <Group
         title="Desain Budaya"
@@ -367,6 +520,11 @@ export default function InvitationForm() {
             <input
               type="text"
               name="region"
+              defaultValue={
+                typeof initial?.theme_config?.region === "string"
+                  ? initial.theme_config.region
+                  : undefined
+              }
               placeholder={traditionEntry.regionHint}
               maxLength={80}
               className={fieldClass}
@@ -387,15 +545,16 @@ export default function InvitationForm() {
         title="Amplop Digital"
         hint={`rekening & e-wallet, maksimal ${MAX_PAYMENT_ACCOUNTS} — biarkan kosong bila tidak dipakai`}
       >
-        {accountRows.map((rowId, index) => (
+        {accountRows.map((row, index) => (
           <div
-            key={rowId}
+            key={row.id}
             className="flex flex-col gap-3 sm:grid sm:items-end sm:grid-cols-[1fr_1.2fr_1.2fr_auto]"
           >
             <Field label="Bank / E-Wallet" labelHidden={index > 0}>
               <input
                 type="text"
                 name="bankName"
+                defaultValue={row.bank}
                 placeholder="BCA"
                 className={fieldClass}
               />
@@ -406,6 +565,7 @@ export default function InvitationForm() {
                 type="text"
                 name="accountNumber"
                 inputMode="numeric"
+                defaultValue={row.number}
                 placeholder="1234567890"
                 className={fieldClass}
               />
@@ -415,6 +575,7 @@ export default function InvitationForm() {
               <input
                 type="text"
                 name="accountHolder"
+                defaultValue={row.holder}
                 placeholder="Budi Santoso"
                 className={fieldClass}
               />
@@ -422,7 +583,7 @@ export default function InvitationForm() {
 
             <button
               type="button"
-              onClick={() => removeAccountRow(rowId)}
+              onClick={() => removeAccountRow(row.id)}
               disabled={accountRows.length <= 1}
               aria-label={`Hapus rekening ke-${index + 1}`}
               className="h-[38px] rounded-lg border border-zinc-300 px-3 text-sm text-zinc-600 transition-colors hover:bg-zinc-100 disabled:opacity-40 disabled:hover:bg-transparent dark:border-zinc-700 dark:text-zinc-400 dark:hover:bg-zinc-800"
@@ -470,7 +631,11 @@ export default function InvitationForm() {
         disabled={pending}
         className="self-start rounded-lg bg-zinc-900 px-5 py-2.5 text-sm font-medium text-white transition-opacity hover:opacity-85 disabled:opacity-60 dark:bg-zinc-100 dark:text-zinc-900"
       >
-        {pending ? "Menyimpan..." : "Simpan Undangan"}
+        {pending
+          ? "Menyimpan..."
+          : isEdit
+            ? "Simpan Perubahan"
+            : "Simpan Undangan"}
       </button>
     </form>
   );

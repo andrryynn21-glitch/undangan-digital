@@ -20,11 +20,12 @@
  * baca publik) dan `supabase/security_rls.sql` (RLS tabel).
  */
 
-import { createPhotoUploadTicket } from "@/lib/photo-actions";
+import { createAudioUploadTicket, createPhotoUploadTicket } from "@/lib/photo-actions";
 import {
-  MAX_PHOTO_BYTES,
+  MAX_AUDIO_BYTES,
   PHOTO_BUCKET,
   formatMegabytes,
+  validateAudioFile,
   validatePhotoFile,
 } from "@/lib/photo-rules";
 import type { PhotoKind } from "@/lib/photo-rules";
@@ -34,7 +35,9 @@ import { getSupabaseBrowserClient } from "@/lib/supabase";
 // `lib/photo-rules.ts` agar bisa dipakai browser dan server tanpa impor
 // melingkar. Diteruskan di sini supaya pemanggil lama tidak perlu berubah.
 export {
+  ACCEPTED_AUDIO_TYPES,
   ACCEPTED_PHOTO_TYPES,
+  MAX_AUDIO_BYTES,
   MAX_PHOTO_BYTES,
   PHOTO_BUCKET,
   buildPhotoPath,
@@ -66,11 +69,19 @@ function translateError(message: string): string {
   }
 
   if (lower.includes("exceeded the maximum allowed size")) {
-    return `Ukuran foto melebihi batas ${formatMegabytes(MAX_PHOTO_BYTES)} yang diizinkan bucket.`;
+    return (
+      `Ukuran berkas melebihi batas ${formatMegabytes(MAX_AUDIO_BYTES)} yang ` +
+      "diizinkan bucket. Bila ini berkas musik, jalankan ulang " +
+      "supabase/storage-setup.sql agar batas bucket ikut dinaikkan."
+    );
   }
 
   if (lower.includes("mime type") || lower.includes("content type")) {
-    return "Jenis berkas ini tidak diizinkan bucket. Gunakan JPG, PNG, WebP, AVIF, atau GIF.";
+    return (
+      "Jenis berkas ini tidak diizinkan bucket. Gunakan JPG, PNG, WebP, AVIF, " +
+      "GIF untuk foto, atau MP3/M4A/OGG untuk musik — dan jalankan ulang " +
+      "supabase/storage-setup.sql bila musik masih ditolak."
+    );
   }
 
   if (lower.includes("already exists")) {
@@ -94,9 +105,44 @@ export async function uploadPhoto(
   const invalid = validatePhotoFile(file);
   if (invalid) return { error: invalid };
 
+  // Path & token ditentukan server; klien tidak boleh memilih lokasi berkas.
+  return uploadWithTicket(file, () =>
+    createPhotoUploadTicket(kind, slug, file.type)
+  );
+}
+
+/**
+ * Mengunggah musik latar undangan (paket VIP).
+ *
+ * Memakai bucket, tiket, dan penanganan error yang sama dengan foto — yang
+ * berbeda hanya aturan berkasnya.
+ */
+export async function uploadMusic(
+  file: File,
+  slug: string
+): Promise<{ url?: string; error?: string }> {
+  const invalid = validateAudioFile(file);
+  if (invalid) return { error: invalid };
+
+  return uploadWithTicket(file, () =>
+    createAudioUploadTicket(slug, file.type)
+  );
+}
+
+/**
+ * Bagian unggah yang sama untuk foto maupun musik: tukar tiket menjadi berkas
+ * terunggah, lalu bacakan URL publiknya.
+ *
+ * Tiketnya diminta lewat callback, bukan diterima sebagai nilai jadi, supaya
+ * kegagalan penerbitan tiket ikut tertangkap oleh `try` di sini — termasuk
+ * kasus konfigurasi Supabase yang belum diisi.
+ */
+async function uploadWithTicket(
+  file: File,
+  requestTicket: () => Promise<{ path?: string; token?: string; error?: string }>
+): Promise<{ url?: string; error?: string }> {
   try {
-    // Path & token ditentukan server; klien tidak boleh memilih lokasi berkas.
-    const ticket = await createPhotoUploadTicket(kind, slug, file.type);
+    const ticket = await requestTicket();
 
     if (ticket.error) return { error: ticket.error };
 
@@ -119,7 +165,7 @@ export async function uploadPhoto(
       .getPublicUrl(ticket.path);
 
     if (!data?.publicUrl) {
-      return { error: "Foto terunggah tetapi URL publiknya tidak terbaca." };
+      return { error: "Berkas terunggah tetapi URL publiknya tidak terbaca." };
     }
 
     return { url: data.publicUrl };

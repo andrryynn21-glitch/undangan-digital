@@ -4,24 +4,33 @@
 -- Jalankan di Supabase → SQL Editor, lalu klik "Run".
 -- Aman dijalankan berulang (idempoten).
 --
--- Bila berkas ini pernah dijalankan versi sebelumnya, JALANKAN ULANG: bagian 3
--- di bawah membuang policy unggah publik yang dulu dibuat di sini.
+-- Bila berkas ini pernah dijalankan versi sebelumnya, JALANKAN ULANG: bagian 1
+-- kini mengizinkan berkas audio (musik latar paket VIP) dan bagian 3 membuang
+-- policy unggah publik yang dulu dibuat di sini.
 -- Aturan akses untuk tabel database ada di berkas terpisah,
 -- `supabase/security_rls.sql`.
 --
 -- Bucket & policy tidak bisa dibuat lewat anon key dari aplikasi, jadi langkah
 -- ini memang harus dilakukan manual dari dashboard.
 
--- 1. Bucket publik: hanya gambar, maksimal 5 MB per berkas.
+-- 1. Bucket publik: gambar + musik latar, maksimal 8 MB per berkas.
 --    Batasan jenis & ukuran dipegang di level bucket, sehingga tetap berlaku
 --    meski ada yang memanggil Storage API langsung.
+--
+--    Batasnya 8 MB (bukan 5 MB seperti versi sebelumnya) karena bucket hanya
+--    punya SATU angka untuk semua berkas, sedangkan satu lagu MP3 hampir selalu
+--    lebih besar dari foto. Batas per jenis yang sebenarnya ditegakkan di
+--    `lib/photo-rules.ts`: foto tetap 5 MB, musik 8 MB.
 insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
 values (
   'invitation-photos',
   'invitation-photos',
   true,
-  5242880,
-  array['image/jpeg', 'image/png', 'image/webp', 'image/avif', 'image/gif']
+  8388608,
+  array[
+    'image/jpeg', 'image/png', 'image/webp', 'image/avif', 'image/gif',
+    'audio/mpeg', 'audio/mp4', 'audio/ogg'
+  ]
 )
 on conflict (id) do update
   set public = true,
