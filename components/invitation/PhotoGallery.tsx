@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 
 import { CornerFrame } from "@/components/invitation/decor";
 import type { DecorLevel } from "@/components/invitation/decor";
@@ -164,79 +165,106 @@ export default function PhotoGallery({
         </div>
       </div>
 
-      {activeIndex !== null ? (
-        <div
-          role="dialog"
-          aria-modal="true"
-          aria-label="Pratinjau foto"
-          className="fixed inset-0 z-60 flex items-center justify-center px-4 py-6"
-          style={{ backgroundColor: "rgba(12,10,9,0.88)" }}
-          onClick={() => setActiveIndex(null)}
-        >
-          <button
-            ref={closeButtonRef}
-            type="button"
-            onClick={() => setActiveIndex(null)}
-            aria-label="Tutup pratinjau"
-            className="absolute top-5 right-5 flex h-11 w-11 cursor-pointer items-center justify-center rounded-full text-white/85 transition-colors hover:bg-white/15 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
-            style={{ backgroundColor: "rgba(255,255,255,0.08)" }}
-          >
-            <CloseIcon />
-          </button>
+      {activeIndex !== null
+        ? /*
+           * Lightbox dicangkokkan ke `document.body`, tidak dirender di tempat.
+           *
+           * Ini bukan kerapian belaka — tanpa portal, tata letaknya rusak.
+           * Galeri berada di dalam `.inv-reveal`, dan aturan `.inv-reveal > *`
+           * di `app/globals.css` memasang animasi `transform` pada tiap section.
+           * Elemen ber-transform menjadi containing block bagi keturunan
+           * `position: fixed`, sehingga `inset-0` mengukur diri terhadap tinggi
+           * section — bukan layar. Foto lalu dipusatkan di tengah section yang
+           * panjang: tampak terdorong ke bawah dan terpotong. Dengan portal,
+           * overlay ini menjadi anak `<body>` dan kembali mengacu ke viewport.
+           */
+          createPortal(
+            <div
+              role="dialog"
+              aria-modal="true"
+              aria-label="Pratinjau foto"
+              className="fixed inset-0 z-100 flex flex-col"
+              style={{ backgroundColor: "rgba(12,10,9,0.94)" }}
+              onClick={() => setActiveIndex(null)}
+            >
+              {/* Baris atas berdiri sendiri, jadi tombol tutup tidak pernah
+                  menimpa foto seperti sebelumnya. */}
+              <div className="flex shrink-0 items-center justify-between gap-4 px-4 py-3 sm:px-6 sm:py-4">
+                <span className="text-xs tracking-[0.2em] text-white/70">
+                  {activeIndex + 1} / {urls.length}
+                </span>
 
-          {urls.length > 1 ? (
-            <>
-              <button
-                type="button"
-                onClick={(event) => {
-                  event.stopPropagation();
-                  step(-1);
-                }}
-                aria-label="Foto sebelumnya"
-                className="absolute left-3 flex h-12 w-12 cursor-pointer items-center justify-center rounded-full text-white/85 transition-colors hover:bg-white/15 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white sm:left-6"
-                style={{ backgroundColor: "rgba(255,255,255,0.08)" }}
+                <button
+                  ref={closeButtonRef}
+                  type="button"
+                  onClick={() => setActiveIndex(null)}
+                  aria-label="Tutup pratinjau"
+                  className="flex h-11 w-11 cursor-pointer items-center justify-center rounded-full text-white/85 transition-colors hover:bg-white/15 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
+                  style={{ backgroundColor: "rgba(255,255,255,0.08)" }}
+                >
+                  <CloseIcon />
+                </button>
+              </div>
+
+              {/*
+               * `min-h-0` wajib: tanpa itu, sebuah flex item menolak menyusut
+               * di bawah tinggi kontennya, jadi `max-h-full` pada foto tak
+               * pernah menggigit dan foto potret tetap meluber ke bawah layar.
+               * Padding samping menyediakan selokan untuk tombol panah agar
+               * tidak menutupi wajah di foto.
+               */}
+              <div
+                className={`relative flex min-h-0 flex-1 items-center justify-center pb-5 sm:pb-8 ${
+                  urls.length > 1 ? "px-14 sm:px-24" : "px-4 sm:px-8"
+                }`}
               >
-                <ChevronIcon direction="left" />
-              </button>
+                {urls.length > 1 ? (
+                  <>
+                    <button
+                      type="button"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        step(-1);
+                      }}
+                      aria-label="Foto sebelumnya"
+                      className="absolute top-1/2 left-3 flex h-12 w-12 -translate-y-1/2 cursor-pointer items-center justify-center rounded-full text-white/85 transition-colors hover:bg-white/15 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white sm:left-6"
+                      style={{ backgroundColor: "rgba(255,255,255,0.08)" }}
+                    >
+                      <ChevronIcon direction="left" />
+                    </button>
 
-              <button
-                type="button"
-                onClick={(event) => {
-                  event.stopPropagation();
-                  step(1);
-                }}
-                aria-label="Foto berikutnya"
-                className="absolute right-3 flex h-12 w-12 cursor-pointer items-center justify-center rounded-full text-white/85 transition-colors hover:bg-white/15 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white sm:right-6"
-                style={{ backgroundColor: "rgba(255,255,255,0.08)" }}
-              >
-                <ChevronIcon direction="right" />
-              </button>
-            </>
-          ) : null}
+                    <button
+                      type="button"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        step(1);
+                      }}
+                      aria-label="Foto berikutnya"
+                      className="absolute top-1/2 right-3 flex h-12 w-12 -translate-y-1/2 cursor-pointer items-center justify-center rounded-full text-white/85 transition-colors hover:bg-white/15 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white sm:right-6"
+                      style={{ backgroundColor: "rgba(255,255,255,0.08)" }}
+                    >
+                      <ChevronIcon direction="right" />
+                    </button>
+                  </>
+                ) : null}
 
-          {/* Klik pada gambar tidak menutup lightbox, hanya klik latarnya. */}
-          <figure
-            className="relative flex max-h-full w-full max-w-3xl flex-col items-center gap-4"
-            onClick={(event) => event.stopPropagation()}
-          >
-            <span className="relative block max-h-[78vh] w-full">
-              <Image
-                src={urls[activeIndex]}
-                alt={`Foto kenangan ${activeIndex + 1}`}
-                width={1600}
-                height={1200}
-                sizes="100vw"
-                unoptimized
-                className="mx-auto h-auto max-h-[78vh] w-auto rounded-2xl object-contain shadow-2xl"
-              />
-            </span>
-
-            <figcaption className="text-xs tracking-[0.2em] text-white/70">
-              {activeIndex + 1} / {urls.length}
-            </figcaption>
-          </figure>
-        </div>
-      ) : null}
+                {/* Klik pada foto tidak menutup lightbox, hanya klik latarnya. */}
+                <Image
+                  key={urls[activeIndex]}
+                  src={urls[activeIndex]}
+                  alt={`Foto kenangan ${activeIndex + 1}`}
+                  width={1600}
+                  height={1200}
+                  sizes="100vw"
+                  unoptimized
+                  onClick={(event) => event.stopPropagation()}
+                  className="h-auto max-h-full w-auto max-w-full rounded-2xl object-contain shadow-2xl"
+                />
+              </div>
+            </div>,
+            document.body
+          )
+        : null}
     </>
   );
 }
