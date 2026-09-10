@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import InvitationForm from "@/components/admin/InvitationForm";
+import CopyLinkButton from "@/components/admin/CopyLinkButton";
 import { getThemeConfig } from "@/config/themes";
 import { logout } from "@/lib/auth-actions";
 import { requireAdmin } from "@/lib/auth-session";
@@ -102,6 +103,7 @@ export default async function AdminPage() {
                     <span className="rounded-full border border-zinc-300 px-2.5 py-0.5 text-xs uppercase tracking-wide text-zinc-600 dark:border-zinc-700 dark:text-zinc-400">
                       {invitation.tier}
                     </span>
+                    <CopyLinkButton slug={invitation.slug} />
                     <Link
                       href={`/${invitation.slug}`}
                       className="rounded-lg bg-zinc-900 px-3 py-1.5 text-xs font-medium text-white transition-opacity hover:opacity-85 dark:bg-zinc-100 dark:text-zinc-900"

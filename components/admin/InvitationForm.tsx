@@ -17,6 +17,7 @@ import {
 import type { TierType } from "@/config/themes";
 import { TRADITION_LIST } from "@/config/cultures";
 import { createInvitation } from "@/lib/actions";
+import { generateSlugFromNames } from "@/lib/slug";
 import {
   CREATE_INVITATION_INITIAL_STATE,
   MAX_PAYMENT_ACCOUNTS,
@@ -97,10 +98,14 @@ export default function InvitationForm() {
   const [tier, setTier] = useState<TierType>("silver");
 
   /**
-   * Slug dipantau juga karena dipakai sebagai nama folder foto di Storage.
-   * Selama masih kosong, foto masuk ke folder `draft/`.
+   * Nama mempelai dipantau karena slug diturunkan darinya — pratinjau tautan
+   * ikut berubah sambil admin mengetik, dan slug itu juga dipakai sebagai nama
+   * folder foto di Storage. Selama masih kosong, foto masuk ke folder `draft/`.
    */
-  const [slug, setSlug] = useState("");
+  const [groomName, setGroomName] = useState("");
+  const [brideName, setBrideName] = useState("");
+
+  const previewSlug = generateSlugFromNames(groomName, brideName);
 
   /**
    * Baris rekening dilacak lewat id, bukan sekadar jumlah — dengan key yang
@@ -127,6 +132,28 @@ export default function InvitationForm() {
    */
   const resetKey = state.status === "success" ? state.slug : "form";
 
+  /**
+   * Nama mempelai kini input terkendali, jadi React tidak lagi mengosongkannya
+   * sendiri setelah action selesai — pengosongan itu harus dilakukan di sini.
+   * Tanpa ini, nama undangan yang baru tersimpan akan tertinggal di form dan
+   * ikut terbawa ke undangan berikutnya.
+   *
+   * Dilakukan saat render (bukan di `useEffect`) mengikuti pola "menyesuaikan
+   * state ketika sesuatu berubah" di dokumentasi React: React langsung mengulang
+   * render dengan nilai baru sebelum apa pun tampil di layar, jadi tidak ada
+   * render berantai seperti pada effect.
+   */
+  const [handledState, setHandledState] = useState(state);
+
+  if (state !== handledState) {
+    setHandledState(state);
+
+    if (state.status === "success") {
+      setGroomName("");
+      setBrideName("");
+    }
+  }
+
   function addAccountRow() {
     setAccountRows((rows) =>
       rows.length >= MAX_PAYMENT_ACCOUNTS
@@ -144,20 +171,6 @@ export default function InvitationForm() {
   return (
     <form action={formAction} className="flex flex-col gap-5">
       <div className="grid gap-4 sm:grid-cols-2">
-        <Field label="Slug" hint="dipakai di URL undangan">
-          <input
-            type="text"
-            name="slug"
-            required
-            value={slug}
-            onChange={(event) => setSlug(event.target.value)}
-            placeholder="budi-ani"
-            pattern="[a-z0-9]+(-[a-z0-9]+)*"
-            title="Huruf kecil, angka, dan tanda hubung"
-            className={fieldClass}
-          />
-        </Field>
-
         <Field label="Paket">
           <select
             name="tier"
@@ -206,6 +219,8 @@ export default function InvitationForm() {
             name="groomName"
             required
             minLength={2}
+            value={groomName}
+            onChange={(event) => setGroomName(event.target.value)}
             placeholder="Budi Santoso"
             className={fieldClass}
           />
@@ -217,6 +232,8 @@ export default function InvitationForm() {
             name="brideName"
             required
             minLength={2}
+            value={brideName}
+            onChange={(event) => setBrideName(event.target.value)}
             placeholder="Ani Rahmawati"
             className={fieldClass}
           />
@@ -229,6 +246,26 @@ export default function InvitationForm() {
         <Field label="Waktu Acara" hint="WIB">
           <input type="time" name="eventTime" required className={fieldClass} />
         </Field>
+      </div>
+
+      {/* Pratinjau tautan. Memakai fungsi yang sama dengan Server Action, jadi
+          yang tampil di sini persis yang akan tersimpan — kecuali nomor urut,
+          yang baru ditambahkan bila slug-nya ternyata sudah dipakai. */}
+      <div className="rounded-lg border border-zinc-200 bg-zinc-50 px-3.5 py-3 dark:border-zinc-800 dark:bg-zinc-900/50">
+        <p className="text-xs font-medium text-zinc-500">Tautan undangan</p>
+        {previewSlug ? (
+          <>
+            <p className="mt-1 truncate font-mono text-sm">/{previewSlug}</p>
+            <p className="mt-1 text-xs text-zinc-500">
+              Dibuat otomatis dari nama mempelai. Bila sudah dipakai, nomor urut
+              ditambahkan sendiri (mis. <code>{previewSlug}-1</code>).
+            </p>
+          </>
+        ) : (
+          <p className="mt-1 text-sm text-zinc-500">
+            Isi nama kedua mempelai untuk melihat tautannya.
+          </p>
+        )}
       </div>
 
       <Field label="Nama Tempat">
@@ -275,14 +312,14 @@ export default function InvitationForm() {
               name="groomPhotoUrl"
               label="Foto Mempelai Pria"
               kind="groom"
-              slug={slug}
+              slug={previewSlug}
             />
 
             <PhotoUpload
               name="bridePhotoUrl"
               label="Foto Mempelai Wanita"
               kind="bride"
-              slug={slug}
+              slug={previewSlug}
             />
           </div>
 
@@ -291,14 +328,14 @@ export default function InvitationForm() {
             label="Foto Sampul / Hero"
             hint="tampil di balik nama mempelai"
             kind="cover"
-            slug={slug}
+            slug={previewSlug}
           />
 
           <PhotoUploadMulti
             name="galleryUrls"
             label={`Foto Galeri — paket ${TIER_LABELS[tier]}`}
             maxPhotos={maxPhotos}
-            slug={slug}
+            slug={previewSlug}
           />
         </div>
       </Group>

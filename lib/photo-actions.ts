@@ -65,13 +65,17 @@ export async function createPhotoUploadTicket(
 
     return { path: data.path, token: data.token };
   } catch (error) {
-    // Termasuk kasus SUPABASE_SERVICE_ROLE_KEY belum diisi — pesan aslinya
-    // sudah menyebut nama env var-nya.
+    // JANGAN kembalikan `error.message` mentah ke browser. Kegagalan konfigurasi
+    // di sini bisa berasal dari `createClient()`, dan pesan aslinya kadang memuat
+    // ISI env var (mis. "Headers.set: <kunci> is an invalid header value") —
+    // artinya service role key ikut tercetak di layar admin. Pesan aslinya
+    // dicatat di log server, yang dikirim ke browser hanya petunjuk umum.
+    console.error("[photo-ticket] Gagal menerbitkan tiket unggah:", error);
+
     return {
       error:
-        error instanceof Error
-          ? error.message
-          : "Gagal menyiapkan unggahan foto.",
+        "Server belum siap menerima unggahan. Periksa konfigurasi Supabase di " +
+        "server (lihat log), lalu coba lagi.",
     };
   }
 }

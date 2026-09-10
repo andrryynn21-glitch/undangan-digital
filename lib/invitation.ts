@@ -171,6 +171,62 @@ export async function getInvitations(limit = 20): Promise<{
 /** Kode error Postgres untuk pelanggaran unique constraint. */
 const UNIQUE_VIOLATION = "23505";
 
+/** Batas percobaan penomoran slug sebelum menyerah ke akhiran acak. */
+const MAX_SLUG_ATTEMPTS = 100;
+
+/**
+ * Mengubah slug dasar menjadi slug yang belum terpakai.
+ *
+ * "budi-ani" → "budi-ani" bila belum ada, atau "budi-ani-1", "budi-ani-2", dan
+ * seterusnya bila sudah.
+ *
+ * Semua kandidat diperiksa lewat SATU query `LIKE 'budi-ani%'`, bukan satu query
+ * per kandidat. Selain jauh lebih hemat, ini juga menghindari 100 bolak-balik ke
+ * database untuk nama yang kebetulan populer. Pola itu ikut menjaring slug lain
+ * yang berawalan sama (mis. "budi-anita"), dan itu tidak masalah — yang dipakai
+ * hanya keanggotaan himpunan untuk kandidat yang bentuknya persis.
+ *
+ * BUKAN pengganti unique constraint di database. Dua admin yang menyimpan nama
+ * yang sama pada saat bersamaan tetap bisa lolos dari pemeriksaan ini (race
+ * condition), dan constraint-lah yang menangkapnya — `insertInvitation()` sudah
+ * menerjemahkan `23505` menjadi pesan yang bisa dibaca manusia.
+ *
+ * Memakai anon key: RLS mengizinkan SELECT publik di `invitations`, jadi tidak
+ * perlu menaikkan hak akses hanya untuk membaca daftar slug.
+ */
+export async function ensureUniqueSlug(baseSlug: string): Promise<string> {
+  try {
+    const supabase = getSupabase();
+
+    const { data, error } = await supabase
+      .from("invitations")
+      .select("slug")
+      .like("slug", `${baseSlug}%`);
+
+    if (error) {
+      console.error("[slug] Gagal memeriksa slug terpakai:", error.message);
+      // Biarkan unique constraint yang menjadi penjaga terakhir.
+      return baseSlug;
+    }
+
+    const taken = new Set((data ?? []).map((row) => row.slug as string));
+
+    if (!taken.has(baseSlug)) return baseSlug;
+
+    for (let index = 1; index <= MAX_SLUG_ATTEMPTS; index += 1) {
+      const candidate = `${baseSlug}-${index}`;
+      if (!taken.has(candidate)) return candidate;
+    }
+
+    // Lebih dari 100 undangan dengan nama yang sama persis. Akhiran waktu
+    // menjaga slug tetap unik tanpa membuat loop-nya tumbuh tanpa batas.
+    return `${baseSlug}-${Date.now().toString(36).slice(-4)}`;
+  } catch (error) {
+    console.error("[slug] Supabase tidak tersedia:", error);
+    return baseSlug;
+  }
+}
+
 /**
  * Menyimpan undangan baru.
  *

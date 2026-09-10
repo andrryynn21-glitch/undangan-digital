@@ -12,8 +12,39 @@ import { createClient, type SupabaseClient } from "@supabase/supabase-js";
  * - SUPABASE_SERVICE_ROLE_KEY (opsional, hanya untuk server)
  */
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+/**
+ * Nilai env var dibersihkan dari spasi/baris baru di ujung sebelum dipakai.
+ *
+ * Kunci Supabase dikirim sebagai header HTTP. Bila nilainya mengandung baris
+ * baru — kasus paling sering: dua env var tidak sengaja ditempel jadi satu nilai
+ * di dashboard hosting — `fetch` menolaknya dengan "invalid header value" dan
+ * ISI KUNCINYA ikut tercetak di pesan error. Karena itu bentuknya diperiksa
+ * lebih dulu di sini, dan pesan yang dilempar hanya menyebut NAMA env var-nya.
+ */
+function readKey(name: string, raw: string | undefined): string | undefined {
+  const value = raw?.trim();
+  if (!value) return undefined;
+
+  if (/\s/.test(value)) {
+    throw new Error(
+      `Nilai ${name} tidak valid: ada spasi atau baris baru di dalamnya. ` +
+        `Biasanya ini karena dua env var tertempel jadi satu nilai. ` +
+        `Setiap env var harus punya baris/entri sendiri. ` +
+        `(Isi nilainya sengaja tidak ditampilkan.)`
+    );
+  }
+
+  return value;
+}
+
+const supabaseUrl = readKey(
+  "NEXT_PUBLIC_SUPABASE_URL",
+  process.env.NEXT_PUBLIC_SUPABASE_URL
+);
+const supabaseAnonKey = readKey(
+  "NEXT_PUBLIC_SUPABASE_ANON_KEY",
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+);
 
 /**
  * Mengembalikan instance Supabase client (anon).
@@ -53,7 +84,10 @@ export function getSupabaseBrowserClient(): SupabaseClient {
  * Memerlukan SUPABASE_SERVICE_ROLE_KEY di .env.local
  */
 export function getSupabaseAdmin(): SupabaseClient {
-  const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const serviceRoleKey = readKey(
+    "SUPABASE_SERVICE_ROLE_KEY",
+    process.env.SUPABASE_SERVICE_ROLE_KEY
+  );
 
   if (!supabaseUrl || !serviceRoleKey) {
     throw new Error(

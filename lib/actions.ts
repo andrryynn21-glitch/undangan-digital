@@ -11,7 +11,12 @@ import type {
   RsvpFormState,
 } from "@/lib/form-state";
 import { MAX_PAYMENT_ACCOUNTS } from "@/lib/form-state";
-import { getInvitationBySlug, insertInvitation } from "@/lib/invitation";
+import {
+  ensureUniqueSlug,
+  getInvitationBySlug,
+  insertInvitation,
+} from "@/lib/invitation";
+import { generateSlugFromNames } from "@/lib/slug";
 import { getSupabase } from "@/lib/supabase";
 import type {
   PaymentAccount,
@@ -136,7 +141,6 @@ export async function submitRsvp(
 // Admin: membuat undangan baru
 // ============================================
 
-const SLUG_PATTERN = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 const TIME_PATTERN = /^([01]\d|2[0-3]):([0-5]\d)$/;
 const HTTP_URL_PATTERN = /^https?:\/\/\S+$/;
@@ -269,7 +273,6 @@ export async function createInvitation(
 ): Promise<CreateInvitationState> {
   await requireAdmin();
 
-  const slug = readString(formData, "slug").toLowerCase();
   const tier = readString(formData, "tier") as TierType;
   const themeId = readString(formData, "themeId");
   const groomName = readString(formData, "groomName");
@@ -286,14 +289,6 @@ export async function createInvitation(
   const galleryUrlsRaw = readStringList(formData, "galleryUrls");
   const tradition = readString(formData, "tradition");
   const region = readString(formData, "region");
-
-  if (!SLUG_PATTERN.test(slug) || slug.length < 3 || slug.length > 60) {
-    return {
-      status: "error",
-      message:
-        "Slug hanya boleh huruf kecil, angka, dan tanda hubung. Contoh: budi-ani",
-    };
-  }
 
   if (!TIERS.includes(tier)) {
     return { status: "error", message: "Paket tidak valid." };
@@ -313,6 +308,14 @@ export async function createInvitation(
       message: "Nama kedua mempelai wajib diisi.",
     };
   }
+
+  // Slug tidak lagi diketik admin: disusun dari nama mempelai, lalu diberi
+  // nomor urut bila sudah terpakai. Form menampilkan pratinjaunya memakai
+  // `generateSlugFromNames()` yang sama, jadi yang tampil = yang tersimpan
+  // (kecuali nomor urut, yang baru diketahui setelah dicek ke database).
+  const slug = await ensureUniqueSlug(
+    generateSlugFromNames(groomName, brideName)
+  );
 
   const eventLabel = getEventLabel(eventName);
 
