@@ -8,6 +8,7 @@ import {
   TIER_ORDER,
   TIER_PRESENTATIONS,
   THEME_SHOWCASES,
+  UNIVERSAL_HIGHLIGHTS,
   isRowUnavailable,
 } from "@/config/tiers";
 import type { FeatureCell } from "@/config/tiers";
@@ -112,6 +113,40 @@ export default async function PaketPage() {
           Buka ketiganya berdampingan untuk menunjukkan bedanya ke customer.
         </p>
       </header>
+
+      {/* Fitur yang sama di ketiga paket. Sengaja ditaruh sebelum kartu harga:
+          tanpa ini, hal-hal terbaik produk ini justru tak terlihat, karena yang
+          tidak membedakan paket tidak muncul sebagai poin jual di kartu mana
+          pun. Labelnya diambil dari tabel perbandingan, bukan ditulis ulang. */}
+      {UNIVERSAL_HIGHLIGHTS.length > 0 ? (
+        <section className="mt-8 rounded-2xl border border-zinc-200 px-5 py-4 dark:border-zinc-800">
+          <h2 className="text-xs font-medium uppercase tracking-[0.18em] text-zinc-500">
+            Termasuk di semua paket
+          </h2>
+
+          <ul className="mt-3 flex flex-wrap gap-x-6 gap-y-2 text-sm">
+            {UNIVERSAL_HIGHLIGHTS.map((label) => (
+              <li key={label} className="flex items-start gap-2">
+                <svg
+                  viewBox="0 0 20 20"
+                  className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400"
+                  aria-hidden="true"
+                >
+                  <path
+                    d="M4 10.5l4 4 8-9"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+                {label}
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
 
       {/* Kartu paket */}
       <section className="mt-10 grid gap-5 lg:grid-cols-3">

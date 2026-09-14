@@ -80,12 +80,15 @@ export async function generateMetadata({
   const bride = invitation.bride_data;
   const couple = `${groom.nickName} & ${bride.nickName}`;
   const mainEvent = invitation.event_data?.events?.[0];
-  const coverPhotoUrl = invitation.event_data?.cover_photo_url;
 
   const description = mainEvent
     ? `${formatEventDate(mainEvent.date)} · ${mainEvent.venueName}. Merupakan suatu kehormatan bagi kami apabila Bapak/Ibu berkenan hadir.`
     : `Undangan pernikahan ${groom.fullName} & ${bride.fullName}.`;
 
+  // Gambar pratinjaunya TIDAK disebut di sini. Itu tugas
+  // `app/[slug]/opengraph-image.tsx`: Next menuliskan sendiri `og:image`
+  // beserta `type`, `width`, dan `height`-nya. Menyebutkan `images` di sini
+  // justru menghasilkan dua `og:image` yang saling bersaing.
   return {
     title: couple,
     description,
@@ -100,15 +103,13 @@ export async function generateMetadata({
       url: `/${slug}`,
       title: `${couple} — ${INVITATION_TITLE}`,
       description,
-      ...(coverPhotoUrl
-        ? { images: [{ url: coverPhotoUrl, alt: couple }] }
-        : {}),
     },
     twitter: {
-      card: coverPhotoUrl ? "summary_large_image" : "summary",
+      // Selalu kartu besar: rute `opengraph-image` menjamin selalu ada gambar
+      // 1200x630, baik dari foto sampul maupun kartu teks cadangan.
+      card: "summary_large_image",
       title: `${couple} — ${INVITATION_TITLE}`,
       description,
-      ...(coverPhotoUrl ? { images: [coverPhotoUrl] } : {}),
     },
   };
 }

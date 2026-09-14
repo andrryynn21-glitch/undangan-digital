@@ -109,9 +109,9 @@ export const TIER_PRESENTATIONS: Record<TierType, TierPresentation> = {
     demoSlug: "paket-vip",
     highlights: [
       `Galeri sampai ${TIER_FEATURES.vip.maxPhotos} foto`,
+      "Musik latar pilihan sendiri",
       "Ucapan tamu muncul tanpa perlu refresh",
       "Ornamen terlengkap: bingkai ganda & judul berkilau",
-      `${WISH_DISPLAY_LIMIT.vip} ucapan terbaru ditampilkan`,
     ],
   },
 };
@@ -329,6 +329,45 @@ export const COMPARISON_GROUPS: FeatureGroup[] = [
         note: "cocok saat ucapan ditayangkan di layar resepsi",
         cells: flag((tier) => TIER_FEATURES[tier].wishbookRealtime),
       },
+      {
+        label: "Tombol bagikan & tambah ke kalender",
+        note: "tamu meneruskan undangan lewat WhatsApp, atau menyimpan tanggalnya ke Google Calendar & Apple Calendar",
+        cells: sameForAll("Termasuk"),
+      },
+    ],
+  },
+  {
+    /**
+     * Semua baris di grup ini berlaku untuk ketiga paket: daftar tamu dikelola
+     * dari panel admin dan tidak bergantung pada fitur paket mana pun. Satu
+     * pengecualian ada di baris terakhir — memantau siapa yang belum menjawab
+     * membutuhkan RSVP yang tersimpan, jadi baris itu mengikuti `rsvpToDb`.
+     */
+    title: "Undangan per Tamu",
+    rows: [
+      {
+        label: "Link khusus untuk setiap tamu",
+        note: "satu tautan per nama, dibuat dari daftar tamu yang ditempel sekaligus",
+        cells: sameForAll("Termasuk"),
+      },
+      {
+        label: "Undangan menyapa nama tamu",
+        note: "\"Kepada Yth.\" tampil di sampul, dan kolom nama di form konfirmasi terisi sendiri",
+        cells: sameForAll("Termasuk"),
+      },
+      {
+        label: "Pesan WhatsApp siap kirim",
+        note: "teks undangan lengkap dengan tautan personal, cukup ditekan lalu kirim",
+        cells: sameForAll("Termasuk"),
+      },
+      {
+        label: "Rekap siapa yang belum menjawab",
+        cells: flag(
+          (tier) => TIER_FEATURES[tier].rsvpToDb,
+          "Termasuk",
+          "Perlu paket Premium ke atas"
+        ),
+      },
     ],
   },
   {
@@ -354,3 +393,30 @@ export const COMPARISON_GROUPS: FeatureGroup[] = [
 export function isRowUnavailable(row: FeatureRow): boolean {
   return TIER_ORDER.every((tier) => !row.cells[tier].available);
 }
+
+/** Baris yang tersedia di ketiga paket tanpa terkecuali. */
+function isRowUniversal(row: FeatureRow): boolean {
+  return TIER_ORDER.every((tier) => row.cells[tier].available);
+}
+
+/**
+ * Fitur yang ditonjolkan di bawah judul halaman paket.
+ *
+ * Isinya TIDAK ditulis ulang sebagai teks bebas: labelnya diambil dari baris
+ * tabel perbandingan, lalu disaring lagi lewat `isRowUniversal()`. Jadi bila
+ * suatu saat salah satu fitur ini dibatasi per paket, baris itu hilang sendiri
+ * dari daftar "termasuk di semua paket" — bukan berubah menjadi janji palsu di
+ * bagian paling atas halaman.
+ */
+const SPOTLIGHT_LABELS = [
+  "Link khusus untuk setiap tamu",
+  "Undangan menyapa nama tamu",
+  "Pesan WhatsApp siap kirim",
+  "Tombol bagikan & tambah ke kalender",
+];
+
+export const UNIVERSAL_HIGHLIGHTS: string[] = COMPARISON_GROUPS.flatMap(
+  (group) => group.rows
+)
+  .filter((row) => SPOTLIGHT_LABELS.includes(row.label) && isRowUniversal(row))
+  .map((row) => row.label);
