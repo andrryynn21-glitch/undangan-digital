@@ -36,6 +36,11 @@ yarn-error.log*
 # vercel
 .vercel
 
+# kilo — di dalamnya ada git worktree berisi salinan seluruh repo
+# (.kilo/worktrees/<nama>/), jadi tanpa baris ini `git add -A` akan menyeret
+# ratusan berkas salinan ke dalam commit.
+/.kilo/
+
 # typescript
 *.tsbuildinfo
 next-env.d.ts
