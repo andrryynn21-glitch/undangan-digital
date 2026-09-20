@@ -450,14 +450,48 @@ function BackdropPattern({ frameStyle }: { frameStyle: FrameStyle }) {
 export function Backdrop({
   frameStyle,
   level,
+  backgroundUrl,
 }: {
   frameStyle: FrameStyle;
   level: DecorLevel;
+  /**
+   * Gambar acuan tema. Bila ada, dipasang sebagai TEKSTUR yang sangat samar di
+   * belakang isi undangan — bukan sebagai gambar yang dilihat. Kepekatannya
+   * memakai `patternOpacity` yang sama dengan motif (0,1 / 0,16), jadi Silver
+   * yang nilainya 0 tetap tampil bersih sesuai janji paketnya.
+   */
+  backgroundUrl?: string | null;
 }) {
   const profile = DECOR_PROFILES[level];
 
   return (
-    <div className={`inv-backdrop inv-grain inv-surface--${level}`}>
+    // `overflow-hidden` menahan tekstur yang diperbesar `scale(1.1)` di bawah:
+    // transform ikut menghitung area gulir, jadi tanpa ini layar sempit bisa
+    // mendapat gulir mendatar 5% yang tidak ada isinya.
+    <div
+      className={`inv-backdrop inv-grain inv-surface--${level} overflow-hidden`}
+    >
+      {/* Tekstur gambar acuan dipasang paling bawah supaya motif tetap di
+          atasnya. Diblur kuat dan diperbesar sedikit: yang diinginkan adalah
+          jejak warna & bentuknya, bukan detailnya — dan blur pada tepi gambar
+          menyisakan pinggiran pucat bila tidak diperbesar.
+          Memakai CSS background, bukan `next/image`, karena berkas ini komponen
+          server tanpa ukuran layout yang perlu dihitung. */}
+      {backgroundUrl && profile.patternOpacity > 0 ? (
+        <div
+          className="absolute inset-0"
+          style={{
+            backgroundImage: `url("${backgroundUrl}")`,
+            backgroundSize: "cover",
+            backgroundPosition: "center",
+            opacity: profile.patternOpacity,
+            filter: "blur(28px)",
+            transform: "scale(1.1)",
+          }}
+          aria-hidden="true"
+        />
+      ) : null}
+
       {profile.pattern ? (
         <div
           className="absolute inset-0"

@@ -82,6 +82,13 @@ interface PhotoUploadProps {
   slug: string;
   /** Foto yang sudah tersimpan, saat form dipakai untuk mengubah undangan */
   initialUrl?: string;
+  /**
+   * Dipanggil setiap URL-nya berubah, termasuk saat dikosongkan.
+   *
+   * Ada supaya form bisa menanggapi fotonya — dipakai gambar acuan tema untuk
+   * menampilkan pratinjau warna. Opsional: pemakai lain tidak perlu tahu.
+   */
+  onUrlChange?: (url: string) => void;
 }
 
 /** Pemilih satu foto (mempelai pria/wanita, atau sampul). */
@@ -92,10 +99,16 @@ export function PhotoUpload({
   kind,
   slug,
   initialUrl = "",
+  onUrlChange,
 }: PhotoUploadProps) {
   const [url, setUrl] = useState(initialUrl);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+
+  function applyUrl(next: string) {
+    setUrl(next);
+    onUrlChange?.(next);
+  }
 
   async function handlePick(files: File[]) {
     setError("");
@@ -104,7 +117,7 @@ export function PhotoUpload({
     const result = await uploadPhoto(files[0], kind, slug);
 
     if (result.error) setError(result.error);
-    else if (result.url) setUrl(result.url);
+    else if (result.url) applyUrl(result.url);
 
     setBusy(false);
   }
@@ -144,7 +157,7 @@ export function PhotoUpload({
           <button
             type="button"
             onClick={() => {
-              setUrl("");
+              applyUrl("");
               setError("");
             }}
             className="text-sm text-zinc-600 underline underline-offset-2 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100"

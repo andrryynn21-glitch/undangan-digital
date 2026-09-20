@@ -20,6 +20,8 @@ import {
   updateInvitationRow,
 } from "@/lib/invitation";
 import { generateSlugFromNames } from "@/lib/slug";
+import { derivePalette } from "@/lib/palette-extract";
+import { parseDerivedPalette } from "@/lib/palette";
 import { deleteInvitationFiles } from "@/lib/storage-admin";
 import { getSupabase } from "@/lib/supabase";
 import type {
@@ -281,6 +283,56 @@ function parsePaymentAccounts(
 }
 
 /**
+ * Menyusun isi kolom `theme_config` dari data adat + gambar acuan tema.
+ *
+ * Warna gambar dibaca SEKALI di sini, saat admin menyimpan — bukan saat tamu
+ * membuka undangan. Hasilnya selalu sama untuk gambar yang sama, jadi
+ * mengulanginya tiap kunjungan hanya menambah waktu tunggu tamu tanpa manfaat.
+ *
+ * KEGAGALAN MEMBACA WARNA TIDAK MENGGAGALKAN PENYIMPANAN. Gambar yang 404,
+ * servernya lambat, atau isinya terlalu pucat menghasilkan `palette: null` —
+ * undangan tetap tersimpan dan tampil dengan warna tema dasar. Gambarnya sendiri
+ * tetap dicatat karena masih layak jadi latar sampul meski warnanya tak terbaca.
+ *
+ * `previous` adalah `theme_config` baris yang sedang disunting, dan hanya diisi
+ * saat memperbarui. Selama gambarnya tidak berganti, palet yang sudah tersimpan
+ * DIPAKAI ULANG — tidak dibaca ulang. Dua alasannya, dan yang pertama soal
+ * benar, bukan soal cepat:
+ *
+ * 1. Membaca ulang membuat palet yang sudah jadi bergantung pada keberhasilan
+ *    unduhan yang tidak ada hubungannya dengan yang sedang disunting. Storage
+ *    yang lambat sedetik saat admin membetulkan salah ketik nama akan menghapus
+ *    warna undangan diam-diam — dan pesannya tetap "berhasil diperbarui", jadi
+ *    tidak ada yang tahu sampai ada tamu yang membukanya.
+ * 2. Hasilnya toh selalu sama untuk gambar yang sama.
+ *
+ * Bila palet tersimpan belum ada (gambarnya pucat, atau unduhan sebelumnya
+ * gagal), pembacaan tetap diulang — menyimpan sekali lagi menjadi cara admin
+ * mencoba ulang tanpa perlu mengunggah gambarnya kembali.
+ */
+async function buildThemeConfig(
+  tradition: string,
+  region: string,
+  backgroundUrl: string | undefined,
+  previous?: Record<string, unknown>
+): Promise<Record<string, unknown>> {
+  const unchanged =
+    backgroundUrl !== undefined && previous?.backgroundUrl === backgroundUrl;
+
+  const stored = unchanged ? parseDerivedPalette(previous?.palette) : null;
+
+  const palette = backgroundUrl
+    ? (stored ?? (await derivePalette(backgroundUrl)))
+    : null;
+
+  return {
+    ...(tradition ? { tradition, region } : {}),
+    ...(backgroundUrl ? { backgroundUrl } : {}),
+    ...(palette ? { palette } : {}),
+  };
+}
+
+/**
  * Membaca & memvalidasi seluruh field form undangan.
  *
  * Dipakai bersama oleh `createInvitation()` dan `updateInvitation()`. Sengaja
@@ -289,10 +341,18 @@ function parsePaymentAccounts(
  *
  * Yang TIDAK dihasilkan di sini adalah `slug` — hanya dibuat saat undangan baru,
  * dan tidak pernah ikut berubah saat diperbarui.
+ *
+ * `async` karena gambar acuan tema perlu diunduh untuk dibaca warnanya. Gambar
+ * itu diunggah browser langsung ke Supabase lewat signed URL, jadi server hanya
+ * menerima URL-nya — byte-nya harus diambil balik di sini.
+ *
+ * `previousThemeConfig` hanya diisi saat memperbarui; lihat `buildThemeConfig()`
+ * untuk alasan palet lama dipertahankan.
  */
-function parseInvitationForm(
-  formData: FormData
-): { payload: InvitationPayload } | { error: string } {
+async function parseInvitationForm(
+  formData: FormData,
+  previousThemeConfig?: Record<string, unknown>
+): Promise<{ payload: InvitationPayload } | { error: string }> {
   const tier = readString(formData, "tier") as TierType;
   const themeId = readString(formData, "themeId");
   const groomName = readString(formData, "groomName");
@@ -310,6 +370,7 @@ function parseInvitationForm(
   const musicUrl = readString(formData, "musicUrl");
   const tradition = readString(formData, "tradition");
   const region = readString(formData, "region");
+  const backgroundUrl = readString(formData, "backgroundUrl");
 
   if (!TIERS.includes(tier)) {
     return { error: "Paket tidak valid." };
@@ -364,6 +425,9 @@ function parseInvitationForm(
   const music = validatePhotoUrl(musicUrl, "Musik latar");
   if (music.error) return { error: music.error };
 
+  const background = validatePhotoUrl(backgroundUrl, "Gambar acuan tema");
+  if (background.error) return { error: background.error };
+
   const payment = parsePaymentAccounts(formData);
   if (payment.error) return { error: payment.error };
 
@@ -381,6 +445,13 @@ function parseInvitationForm(
 
   const paymentData: PaymentData =
     payment.accounts.length > 0 ? { accounts: payment.accounts } : {};
+
+  const themeConfig = await buildThemeConfig(
+    tradition,
+    region,
+    background.url,
+    previousThemeConfig
+  );
 
   return {
     payload: {
@@ -402,7 +473,7 @@ function parseInvitationForm(
         ...(gallery.urls.length > 0 ? { gallery_urls: gallery.urls } : {}),
       },
       payment_data: paymentData,
-      theme_config: tradition ? { tradition, region } : {},
+      theme_config: themeConfig,
       // Musik hanya milik paket VIP. Ditegakkan di sini, bukan hanya dengan
       // menyembunyikan field-nya di form: Server Action bisa dipanggil lewat
       // POST langsung, jadi field yang tidak tampil tetap bisa dikirim.
@@ -427,7 +498,7 @@ export async function createInvitation(
 ): Promise<CreateInvitationState> {
   await requireAdmin();
 
-  const parsed = parseInvitationForm(formData);
+  const parsed = await parseInvitationForm(formData);
 
   if ("error" in parsed) {
     return { status: "error", message: parsed.error };
@@ -485,7 +556,7 @@ export async function updateInvitation(
     return { status: "error", message: "Undangan tidak ditemukan." };
   }
 
-  const parsed = parseInvitationForm(formData);
+  const parsed = await parseInvitationForm(formData, invitation.theme_config);
 
   if ("error" in parsed) {
     return { status: "error", message: parsed.error };

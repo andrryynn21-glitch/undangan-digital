@@ -53,7 +53,13 @@ export const ACCEPTED_AUDIO_TYPES = [
 ] as const;
 
 /** Jenis foto, dipakai sebagai awalan nama berkas agar mudah dikenali. */
-export const PHOTO_KINDS = ["groom", "bride", "cover", "gallery"] as const;
+export const PHOTO_KINDS = [
+  "groom",
+  "bride",
+  "cover",
+  "gallery",
+  "background",
+] as const;
 
 export type PhotoKind = (typeof PHOTO_KINDS)[number];
 

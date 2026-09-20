@@ -21,6 +21,20 @@ interface CoverGateProps {
   /** Foto sampul dari `event_data.cover_photo_url` */
   coverPhotoUrl?: string;
   /**
+   * Gambar acuan tema dari `theme_config.backgroundUrl`.
+   *
+   * Bila ada, gambar inilah yang menjadi latar sampul — bukan foto mempelai.
+   * Itu memang niatnya: gambar acuan dipilih khusus sebagai latar, sedangkan
+   * foto sampul tetap tampil utuh di bagian pembuka dan di pratinjau WhatsApp.
+   */
+  backgroundUrl?: string | null;
+  /**
+   * Rata-rata terang gambar acuan (0-1) dari hasil pembacaan warna.
+   * Menentukan kekuatan peredup: gambar terang perlu peredup lebih tebal agar
+   * nama mempelai yang berwarna putih tetap terbaca di atasnya.
+   */
+  coverLuminance?: number;
+  /**
    * Nama tamu dari tautan personal (`?to=`). Bila ada, sampul menyapa tamunya
    * dengan "Kepada Yth."; bila tidak, sampul tampil seperti undangan biasa.
    */
@@ -51,6 +65,8 @@ export default function CoverGate({
   eyebrow = "Undangan Pernikahan",
   dateText,
   coverPhotoUrl,
+  backgroundUrl,
+  coverLuminance,
   guestName,
   musicUrl,
   frameStyle,
@@ -71,9 +87,14 @@ export default function CoverGate({
     };
   }, [opened]);
 
+  // Gambar acuan tema menang atas foto sampul sebagai latar — lihat komentar
+  // pada prop `backgroundUrl`. Tanpa gambar acuan, perilakunya sama persis
+  // seperti sebelum fitur ini ada.
+  const coverImageUrl = backgroundUrl ?? coverPhotoUrl;
+
   // Di atas foto, warna tema tidak lagi menjamin kontras — teks dibuat putih
   // dengan bayangan halus dan kartu memakai kaca gelap.
-  const onPhoto = Boolean(coverPhotoUrl);
+  const onPhoto = Boolean(coverImageUrl);
 
   const textStyle: CSSProperties = onPhoto
     ? { color: "#fff", textShadow: "0 1px 12px rgba(0,0,0,0.45)" }
@@ -92,6 +113,27 @@ export default function CoverGate({
       : frameStyle === "floral"
         ? "rounded-[2.75rem]"
         : "rounded-[1.25rem]";
+
+  // Peredup gradien tiga titik. Angka dasarnya sudah terbukti enak dilihat di
+  // atas foto mempelai, jadi tanpa data terang gambar nilainya tidak diubah
+  // sedikit pun — `lift` bernilai 0 dan hasilnya identik dengan sebelumnya.
+  //
+  // Bila terang gambar diketahui, peredup digeser: gambar terang (latar bunga
+  // pastel dari Pinterest) mendapat peredup lebih tebal supaya nama mempelai
+  // yang putih tidak lenyap, gambar gelap mendapat peredup lebih ringan supaya
+  // sampulnya tidak jadi hitam pekat. Batasnya dijaga agar tidak ada nilai yang
+  // keluar dari rentang yang masih terlihat wajar.
+  const lift =
+    coverLuminance === undefined
+      ? 0
+      : Math.max(-0.12, Math.min(0.2, (coverLuminance - 0.35) * 0.55));
+
+  const scrim = (base: number) =>
+    Math.max(0.12, Math.min(0.85, base + lift)).toFixed(2);
+
+  const scrimGradient = `linear-gradient(180deg, rgba(0,0,0,${scrim(
+    0.45
+  )}) 0%, rgba(0,0,0,${scrim(0.25)}) 40%, rgba(0,0,0,${scrim(0.6)}) 100%)`;
 
   return (
     <>
@@ -112,10 +154,10 @@ export default function CoverGate({
         style={{ backgroundColor: "var(--theme-background)" }}
       >
         {/* Lapisan foto sampul + peredup agar teks tetap terbaca */}
-        {coverPhotoUrl ? (
+        {coverImageUrl ? (
           <>
             <Image
-              src={coverPhotoUrl}
+              src={coverImageUrl}
               alt=""
               fill
               sizes="100vw"
@@ -128,10 +170,7 @@ export default function CoverGate({
             />
             <div
               className="absolute inset-0"
-              style={{
-                background:
-                  "linear-gradient(180deg, rgba(0,0,0,0.45) 0%, rgba(0,0,0,0.25) 40%, rgba(0,0,0,0.6) 100%)",
-              }}
+              style={{ background: scrimGradient }}
             />
           </>
         ) : (

@@ -24,7 +24,12 @@ import {
   getThemeCssVars,
   getTierFeatures,
 } from "@/config/themes";
-import { applyCulturalOverride, parseCulturalData } from "@/lib/culture-theme";
+import {
+  applyCulturalOverride,
+  applyPaletteOverride,
+  parseCulturalData,
+  parseThemeImageData,
+} from "@/lib/culture-theme";
 import { WISH_DISPLAY_LIMIT } from "@/config/tiers";
 import { formatEventDate, getCalendarRange, getCountdownEvent } from "@/lib/date";
 import {
@@ -129,10 +134,17 @@ export default async function InvitationPage({
   const baseTheme = getThemeConfig(invitation.theme_id);
   const features = getTierFeatures(invitation.tier);
 
-  // Terapkan override budaya (tradisi & daerah) bila admin mengisinya.
-  // Undangan lama yang tidak punya data budaya mendapat baseTheme apa adanya.
+  // Dua lapis override, dan URUTANNYA DISENGAJA: warna gambar acuan dulu,
+  // lalu adat. Adat menang karena dipilih atas alasan budaya, bukan estetika —
+  // warna batik tidak boleh digeser warna yang kebetulan menonjol di sebuah
+  // foto. Undangan lama yang `theme_config`-nya `{}` melewati keduanya tanpa
+  // perubahan sama sekali.
+  const themeImage = parseThemeImageData(invitation.theme_config);
   const culturalData = parseCulturalData(invitation.theme_config);
-  const theme = applyCulturalOverride(baseTheme, culturalData);
+  const theme = applyCulturalOverride(
+    applyPaletteOverride(baseTheme, themeImage.palette),
+    culturalData
+  );
 
   // Banyaknya ornamen ditentukan paket, bentuk & warnanya ditentukan tema.
   const level = getDecorLevel(invitation.tier);
@@ -191,7 +203,11 @@ export default async function InvitationPage({
       }
     >
       {/* Latar berlapis: gradasi tema + pola motif + tekstur kertas */}
-      <Backdrop frameStyle={frameStyle} level={level} />
+      <Backdrop
+        frameStyle={frameStyle}
+        level={level}
+        backgroundUrl={themeImage.backgroundUrl}
+      />
 
       <CoverGate
         groomName={groom.nickName}
@@ -199,6 +215,8 @@ export default async function InvitationPage({
         eyebrow={INVITATION_TITLE}
         dateText={coverDateText}
         coverPhotoUrl={coverPhotoUrl}
+        backgroundUrl={themeImage.backgroundUrl}
+        coverLuminance={themeImage.palette?.luminance}
         guestName={guestName}
         // Musik hanya untuk paket yang memang menjanjikannya.
         musicUrl={features.customMusic ? invitation.music_url : null}

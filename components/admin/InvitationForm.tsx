@@ -8,6 +8,7 @@ import {
   PhotoUpload,
   PhotoUploadMulti,
 } from "@/components/admin/PhotoUpload";
+import ThemePalettePreview from "@/components/admin/ThemePalettePreview";
 import { EVENT_OPTIONS } from "@/config/events";
 import {
   TIERS,
@@ -182,6 +183,16 @@ export default function InvitationForm({ initial }: InvitationFormProps) {
   );
   const traditionEntry = TRADITION_LIST.find((t) => t.key === tradition) ?? TRADITION_LIST[0];
 
+  /**
+   * Gambar acuan tema, dipantau supaya pratinjau warnanya bisa ikut berubah
+   * begitu gambarnya terunggah — tanpa menunggu undangan disimpan.
+   */
+  const [backgroundUrl, setBackgroundUrl] = useState(
+    typeof initial?.theme_config?.backgroundUrl === "string"
+      ? initial.theme_config.backgroundUrl
+      : ""
+  );
+
   const availableThemes = THEMES.filter((theme) =>
     isTierAllowed(tier, theme.tierRequirement)
   );
@@ -238,6 +249,11 @@ export default function InvitationForm({ initial }: InvitationFormProps) {
     if (!isEdit && state.status === "success") {
       setGroomName("");
       setBrideName("");
+      // Ikut dikosongkan karena nilainya dipegang di sini, bukan di dalam
+      // `PhotoUpload`: tanpa ini gambar acuan undangan yang baru tersimpan akan
+      // terbawa ke undangan berikutnya, tidak seperti foto-foto lain yang ikut
+      // terhapus oleh penggantian `resetKey`.
+      setBackgroundUrl("");
     }
   }
 
@@ -497,6 +513,30 @@ export default function InvitationForm({ initial }: InvitationFormProps) {
         title="Desain Budaya"
         hint="pilih tradisi untuk mengubah palet warna & motif ornamen undangan"
       >
+        <div key={resetKey} className="flex flex-col gap-3">
+          <PhotoUpload
+            name="backgroundUrl"
+            label="Gambar acuan tema"
+            hint="(opsional) — warna undangan diambil otomatis dari gambar ini"
+            kind="background"
+            slug={uploadSlug}
+            initialUrl={backgroundUrl}
+            onUrlChange={setBackgroundUrl}
+          />
+
+          <p className="text-xs text-zinc-500">
+            Gambar ini menjadi latar sampul undangan, dan warnanya dipakai untuk
+            judul, panel, serta ornamen. Foto sampul tetap tampil utuh di bagian
+            pembuka dan di pratinjau WhatsApp.
+          </p>
+
+          <ThemePalettePreview
+            imageUrl={backgroundUrl}
+            themeId={themeId}
+            tradition={tradition}
+          />
+        </div>
+
         <div className="grid gap-4 sm:grid-cols-2">
           <Field label="Adat / Tradisi">
             <select

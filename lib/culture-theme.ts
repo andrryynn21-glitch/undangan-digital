@@ -1,16 +1,17 @@
 /**
- * Merge cultural override ke ThemeConfig dasar.
+ * Penyusunan ThemeConfig akhir dari tema dasar + dua lapis override.
  *
- * Fungsi ini menerima tema yang sudah dipilih admin (dari config/themes.ts) dan
- * data budaya yang tersimpan di kolom `theme_config` JSONB. Hasilnya adalah
- * ThemeConfig lengkap dengan warna, font, dan frameStyle yang mencerminkan
- * tradisi yang dipilih — sementara field lain (id, name, previewImage, dll.)
- * tetap dari tema dasar supaya sistem tema yang sudah ada tidak rusak.
+ * Urutannya: tema dasar -> warna dari gambar acuan -> override adat.
  *
- * Override bersifat parsial: kalau tradisi hanya mendefinisikan colors tapi
- * tidak fonts, maka font tetap dari tema dasar. Ini berarti "Modern/Nasional"
- * (yang tidak punya override sama sekali) menghasilkan output identik dengan
- * tema dasar.
+ * URUTAN INI DISENGAJA, DAN ADAT YANG MENANG. Kalau admin memilih "Jawa", dia
+ * memilihnya karena alasan budaya, bukan estetika — warna batik tidak boleh
+ * digeser oleh warna yang kebetulan menonjol di sebuah foto. Gambarnya tetap
+ * tampil sebagai latar sampul. Bila tradisinya "modern" (tanpa override warna),
+ * warna dari gambar berlaku penuh.
+ *
+ * Keduanya bersifat parsial: properti yang tidak disebut tetap dari tema dasar.
+ * Undangan lama yang `theme_config`-nya `{}` melewati kedua lapis ini tanpa
+ * perubahan sama sekali.
  */
 
 import {
@@ -18,6 +19,8 @@ import {
 } from "@/config/cultures";
 import type { CulturalData } from "@/config/cultures";
 import type { ThemeConfig } from "@/config/themes";
+import { parseDerivedPalette, resolvePaletteColors } from "@/lib/palette";
+import type { DerivedPalette } from "@/lib/palette";
 
 /**
  * Membaca data budaya dari `theme_config` JSONB dengan aman.
@@ -36,6 +39,52 @@ export function parseCulturalData(
     tradition,
     region: typeof region === "string" ? region : "",
   };
+}
+
+/**
+ * Data gambar acuan tema yang tersimpan di `theme_config` JSONB.
+ *
+ * Dua bagian yang sengaja dipisah: `backgroundUrl` dipakai untuk menampilkan
+ * gambarnya, `palette` untuk mewarnai undangan. Salah satunya boleh ada tanpa
+ * yang lain — gambar yang terlalu pucat menghasilkan `palette: null` tapi tetap
+ * layak tampil sebagai latar sampul.
+ */
+export interface ThemeImageData {
+  backgroundUrl: string | null;
+  palette: DerivedPalette | null;
+}
+
+/**
+ * Membaca data gambar acuan dari `theme_config` JSONB dengan aman.
+ *
+ * Undangan lama tidak punya field ini sama sekali, jadi keduanya `null` dan
+ * tampilannya tidak berubah sedikit pun.
+ */
+export function parseThemeImageData(
+  raw: Record<string, unknown>
+): ThemeImageData {
+  const url = raw.backgroundUrl;
+
+  return {
+    backgroundUrl:
+      typeof url === "string" && /^https?:\/\//.test(url) ? url : null,
+    palette: parseDerivedPalette(raw.palette),
+  };
+}
+
+/**
+ * Terapkan warna hasil pembacaan gambar ke ThemeConfig dasar.
+ *
+ * Hanya warna yang berubah; font dan gaya bingkai tetap milik tema dasar.
+ * Warna bisa diukur dari gambar, "rasa" tipografi tidak.
+ */
+export function applyPaletteOverride(
+  base: ThemeConfig,
+  palette: DerivedPalette | null
+): ThemeConfig {
+  if (!palette) return base;
+
+  return { ...base, colors: resolvePaletteColors(base.colors, palette) };
 }
 
 /**
