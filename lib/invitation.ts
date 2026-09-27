@@ -390,10 +390,25 @@ export interface RsvpSummary {
  * ke `rsvps`, tidak membacanya. Itu memang yang benar — daftar tamu yang sudah
  * mengonfirmasi bukan konsumsi publik — jadi yang perlu dinaikkan haknya adalah
  * pembacaan di sisi admin ini, bukan policy-nya yang dilonggarkan.
+ *
+ * JAWABAN GANDA DARI TAMU YANG SAMA DIHITUNG SEKALI.
+ *
+ * Tabel `rsvps` tidak punya unique constraint: tamu yang berubah pikiran, atau
+ * yang menekan kirim dua kali di jaringan lambat, meninggalkan dua baris. Sebelum
+ * ini keduanya masuk rekap, sehingga "Hadir: 120 orang" bisa berisi orang yang
+ * sama dua kali — dan pemilik acara memesan kursi serta katering berdasarkan
+ * angka itu. Karena barisnya sudah diurutkan dari yang TERBARU, jawaban pertama
+ * yang ditemui per nama itulah yang dipakai; kiriman lama diabaikan.
+ *
+ * `data` tetap berisi seluruh baris apa adanya supaya admin bisa melihat ada
+ * berapa kiriman ganda, sedangkan `latest` adalah daftar yang sudah dibersihkan
+ * dan itulah yang dipakai untuk rekap serta tabel.
  */
 export async function getRsvps(invitationId: string): Promise<{
   data: RsvpRow[];
+  latest: RsvpRow[];
   summary: RsvpSummary;
+  duplicateCount: number;
   error: string | null;
 }> {
   const empty: RsvpSummary = { attending: 0, declined: 0, headcount: 0 };
@@ -408,12 +423,28 @@ export async function getRsvps(invitationId: string): Promise<{
       .order("created_at", { ascending: false });
 
     if (error) {
-      return { data: [], summary: empty, error: error.message };
+      return {
+        data: [],
+        latest: [],
+        summary: empty,
+        duplicateCount: 0,
+        error: error.message,
+      };
     }
 
     const rows = (data ?? []) as RsvpRow[];
 
-    const summary = rows.reduce<RsvpSummary>((acc, row) => {
+    const seen = new Set<string>();
+    const latest = rows.filter((row) => {
+      const key = row.guest_name.trim().toLowerCase();
+
+      if (seen.has(key)) return false;
+
+      seen.add(key);
+      return true;
+    });
+
+    const summary = latest.reduce<RsvpSummary>((acc, row) => {
       if (row.status === "attending") {
         acc.attending += 1;
         acc.headcount += row.headcount ?? 1;
@@ -424,11 +455,19 @@ export async function getRsvps(invitationId: string): Promise<{
       return acc;
     }, { ...empty });
 
-    return { data: rows, summary, error: null };
+    return {
+      data: rows,
+      latest,
+      summary,
+      duplicateCount: rows.length - latest.length,
+      error: null,
+    };
   } catch (error) {
     return {
       data: [],
+      latest: [],
       summary: empty,
+      duplicateCount: 0,
       error: error instanceof Error ? error.message : "Supabase tidak tersedia.",
     };
   }

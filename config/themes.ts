@@ -61,8 +61,6 @@ export interface ThemeConfig {
   id: string;
   /** Nama tampilan tema di galeri pemilihan tema */
   name: string;
-  /** Path gambar preview (relatif terhadap folder `public/`) */
-  previewImage: string;
   /** Paket MINIMUM yang boleh memakai tema ini (berlaku untuk tier di atasnya juga) */
   tierRequirement: TierType;
   colors: ThemeColors;
@@ -140,7 +138,6 @@ export function parseThemeConfig(raw: unknown): ThemeConfig {
   return {
     id: requireString(raw, "id", ""),
     name: requireString(raw, "name", ""),
-    previewImage: requireString(raw, "previewImage", ""),
     tierRequirement: tierRequirement as TierType,
     colors: {
       primary: requireString(colors, "primary", "colors."),

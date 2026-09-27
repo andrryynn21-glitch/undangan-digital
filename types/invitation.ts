@@ -69,6 +69,23 @@ export interface WeddingEvent {
 // ============================================
 
 /**
+ * Satu tahap dalam "Kisah Kami" (timeline perjalanan pasangan).
+ *
+ * Disimpan sebagai array di dalam `event_data` — bukan tabel tersendiri —
+ * karena jumlahnya sedikit (dibatasi `MAX_STORY_ITEMS`) dan selalu dibaca
+ * bersama undangannya. Menambah tabel berarti menambah RLS, query, dan urusan
+ * penghapusan untuk data yang tidak pernah dicari terpisah.
+ */
+export interface StoryItem {
+  /** Judul singkat tahap, misal "Pertemuan Pertama" */
+  title: string;
+  /** Keterangan waktu yang ditulis bebas, misal "Maret 2019" atau "2021" */
+  date?: string;
+  /** Cerita singkat tahap ini */
+  text: string;
+}
+
+/**
  * Isi kolom `invitations.event_data`.
  *
  * Tabel tidak punya kolom khusus untuk daftar acara maupun kutipan, jadi
@@ -82,6 +99,8 @@ export interface EventData {
   quote?: string;
   /** Foto sampul (hero) yang tampil di belakang nama mempelai */
   cover_photo_url?: string;
+  /** Kisah perjalanan pasangan; bagian "Kisah Kami" disembunyikan bila kosong */
+  story?: StoryItem[];
   /**
    * Foto galeri kenangan. Jumlahnya dibatasi `getTierFeatures(tier).maxPhotos`
    * saat undangan dibuat, jadi array ini tidak pernah lebih panjang dari kuota

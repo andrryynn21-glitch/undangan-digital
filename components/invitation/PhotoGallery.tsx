@@ -44,6 +44,34 @@ function CloseIcon() {
   );
 }
 
+function PlayIcon() {
+  return (
+    <svg
+      width="18"
+      height="18"
+      viewBox="0 0 24 24"
+      fill="currentColor"
+      aria-hidden="true"
+    >
+      <path d="M8 5.5v13l11-6.5z" />
+    </svg>
+  );
+}
+
+function PauseIcon() {
+  return (
+    <svg
+      width="18"
+      height="18"
+      viewBox="0 0 24 24"
+      fill="currentColor"
+      aria-hidden="true"
+    >
+      <path d="M7.5 5h3.2v14H7.5zM13.3 5h3.2v14h-3.2z" />
+    </svg>
+  );
+}
+
 interface PhotoGalleryProps {
   /** URL foto dari `event_data.gallery_urls` */
   urls: string[];
@@ -65,7 +93,54 @@ export default function PhotoGallery({
   const [activeIndex, setActiveIndex] = useState<number | null>(null);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
 
+  /**
+   * Putar otomatis. Dimatikan secara bawaan — foto yang berpindah sendiri saat
+   * tamu sedang menikmati satu momen justru mengganggu, jadi tombolnya
+   * disediakan bagi tamu yang memang ingin melihat galerinya mengalir.
+   */
+  const [playing, setPlaying] = useState(false);
+
+  /** Titik awal sentuhan, untuk mengenali geseran mendatar. */
+  const touchStartX = useRef<number | null>(null);
+
+  /**
+   * Penanda bahwa sentuhan terakhir sudah ditangani sebagai geseran. Peramban
+   * di layar sentuh tetap mengirim `click` setelah `touchend`, sehingga tanpa
+   * penanda ini setiap kali tamu menggeser foto, pratinjaunya ikut tertutup.
+   */
+  const swipeHandled = useRef(false);
+
   const isOpen = activeIndex !== null;
+
+  // Putar otomatis.
+  useEffect(() => {
+    if (!playing || !isOpen || urls.length < 2) return;
+
+    const intervalId = window.setInterval(() => {
+      setActiveIndex((current) =>
+        current === null ? null : (current + 1) % urls.length
+      );
+    }, 4200);
+
+    return () => window.clearInterval(intervalId);
+  }, [playing, isOpen, urls.length]);
+
+  /**
+   * Foto tetangga dimuat lebih dulu.
+   *
+   * Foto undangan berukuran besar dan sengaja tidak dioptimasi Next (URL-nya
+   * bebas dari admin), jadi tanpa langkah ini setiap perpindahan foto
+   * memperlihatkan layar kosong selama berkasnya diunduh.
+   */
+  useEffect(() => {
+    if (activeIndex === null || urls.length < 2) return;
+
+    for (const offset of [1, -1]) {
+      const url = urls[(activeIndex + offset + urls.length) % urls.length];
+      const preload = new window.Image();
+      preload.src = url;
+    }
+  }, [activeIndex, urls]);
 
   // Kunci scroll halaman & pindahkan fokus ke tombol tutup selama lightbox
   // terbuka, lalu kembalikan gulir seperti semula saat ditutup.
@@ -129,7 +204,14 @@ export default function PhotoGallery({
             <button
               key={`${url}-${index}`}
               type="button"
-              onClick={() => setActiveIndex(index)}
+              onClick={() => {
+                // Putar otomatis selalu dimulai dari keadaan berhenti, sehingga
+                // membuka pratinjau lagi tidak melanjutkan putaran lama. Ini juga
+                // menggantikan reset lewat `useEffect`, yang memicu render
+                // berantai dan ditolak aturan `react-hooks/set-state-in-effect`.
+                setPlaying(false);
+                setActiveIndex(index);
+              }}
               aria-label={`Perbesar foto ${index + 1} dari ${urls.length}`}
               className={`inv-sheen group relative cursor-pointer overflow-hidden rounded-2xl focus-visible:outline-2 focus-visible:outline-offset-2 ${
                 index === 0 && urls.length > 2
@@ -185,25 +267,77 @@ export default function PhotoGallery({
               aria-label="Pratinjau foto"
               className="fixed inset-0 z-100 flex flex-col"
               style={{ backgroundColor: "rgba(12,10,9,0.94)" }}
-              onClick={() => setActiveIndex(null)}
+              onClick={() => {
+                // Geseran sudah ditangani `onTouchEnd`; `click` yang menyusul
+                // setelahnya bukan maksud tamu untuk menutup pratinjau.
+                swipeHandled.current = false;
+              }}
+              onTouchStart={(event) => {
+                swipeHandled.current = false;
+                touchStartX.current = event.touches[0]?.clientX ?? null;
+              }}
+              onTouchEnd={(event) => {
+                const startX = touchStartX.current;
+                touchStartX.current = null;
+
+                if (startX === null || urls.length < 2) return;
+
+                const endX = event.changedTouches[0]?.clientX ?? startX;
+                const delta = endX - startX;
+
+                // Ambang 45 px memisahkan ketukan (yang menutup pratinjau) dari
+                // geseran; di bawah itu getaran jari sudah membuat foto berpindah.
+                if (Math.abs(delta) < 45) return;
+
+                swipeHandled.current = true;
+                step(delta < 0 ? 1 : -1);
+              }}
             >
               {/* Baris atas berdiri sendiri, jadi tombol tutup tidak pernah
                   menimpa foto seperti sebelumnya. */}
               <div className="flex shrink-0 items-center justify-between gap-4 px-4 py-3 sm:px-6 sm:py-4">
-                <span className="text-xs tracking-[0.2em] text-white/70">
-                  {activeIndex + 1} / {urls.length}
-                </span>
+                <div className="flex items-center gap-3">
+                  <span className="text-xs tracking-[0.2em] text-white/70">
+                    {activeIndex + 1} / {urls.length}
+                  </span>
 
-                <button
-                  ref={closeButtonRef}
-                  type="button"
-                  onClick={() => setActiveIndex(null)}
-                  aria-label="Tutup pratinjau"
-                  className="flex h-11 w-11 cursor-pointer items-center justify-center rounded-full text-white/85 transition-colors hover:bg-white/15 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
-                  style={{ backgroundColor: "rgba(255,255,255,0.08)" }}
-                >
-                  <CloseIcon />
-                </button>
+                  {urls.length > 1 ? (
+                    <span className="text-[0.6rem] tracking-wide text-white/45 sm:hidden">
+                      Geser untuk pindah
+                    </span>
+                  ) : null}
+                </div>
+
+                <div className="flex items-center gap-2">
+                  {/* Putar otomatis: disediakan untuk tamu yang ingin melihat
+                      seluruh galeri mengalir tanpa menyentuh layar — perilaku
+                      lazim di undangan digital, tapi tidak dipaksakan. */}
+                  {urls.length > 1 ? (
+                    <button
+                      type="button"
+                      onClick={() => setPlaying((value) => !value)}
+                      aria-label={
+                        playing ? "Hentikan putar otomatis" : "Putar otomatis"
+                      }
+                      aria-pressed={playing}
+                      className="flex h-11 w-11 cursor-pointer items-center justify-center rounded-full text-white/85 transition-colors hover:bg-white/15 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
+                      style={{ backgroundColor: "rgba(255,255,255,0.08)" }}
+                    >
+                      {playing ? <PauseIcon /> : <PlayIcon />}
+                    </button>
+                  ) : null}
+
+                  <button
+                    ref={closeButtonRef}
+                    type="button"
+                    onClick={() => setActiveIndex(null)}
+                    aria-label="Tutup pratinjau"
+                    className="flex h-11 w-11 cursor-pointer items-center justify-center rounded-full text-white/85 transition-colors hover:bg-white/15 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white"
+                    style={{ backgroundColor: "rgba(255,255,255,0.08)" }}
+                  >
+                    <CloseIcon />
+                  </button>
+                </div>
               </div>
 
               {/*
@@ -217,6 +351,16 @@ export default function PhotoGallery({
                 className={`relative flex min-h-0 flex-1 items-center justify-center pb-5 sm:pb-8 ${
                   urls.length > 1 ? "px-14 sm:px-24" : "px-4 sm:px-8"
                 }`}
+                // Klik pada latar gelap di sekitar foto menutup pratinjau; klik
+                // pada fotonya sendiri tidak (`stopPropagation` di bawah).
+                onClick={(event) => {
+                  if (swipeHandled.current) {
+                    swipeHandled.current = false;
+                    return;
+                  }
+
+                  if (event.target === event.currentTarget) setActiveIndex(null);
+                }}
               >
                 {urls.length > 1 ? (
                   <>

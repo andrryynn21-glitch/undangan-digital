@@ -8,6 +8,7 @@ import {
   getDecorProfile,
 } from "@/components/invitation/decor";
 import type { DecorLevel } from "@/components/invitation/decor";
+import Reveal from "@/components/invitation/Reveal";
 
 interface SectionProps {
   title?: string;
@@ -26,9 +27,12 @@ interface SectionProps {
 /**
  * Pembungkus standar tiap bagian undangan.
  *
- * Selain menjaga spasi & tipografi tetap konsisten, komponen ini yang memasang
- * bingkai sudut dekoratif — hanya pada paket Premium & VIP, sesuai
- * `getDecorProfile(tier).corners`.
+ * Selain menjaga spasi & tipografi tetap konsisten, komponen ini:
+ *  - memasang bingkai sudut dekoratif — hanya pada paket Premium & VIP, sesuai
+ *    `getDecorProfile(tier).corners`;
+ *  - membungkus isinya dengan `Reveal`, sehingga tiap bagian punya animasi
+ *    masuknya sendiri saat mencapai layar;
+ *  - memasang `id` bersama `scroll-mt`, target tombol navigasi mengambang.
  */
 export function Section({
   title,
@@ -43,8 +47,12 @@ export function Section({
   const profile = getDecorProfile(level);
 
   return (
-    <section id={id} className="relative px-5 py-16 sm:py-24">
-      <div
+    <section
+      id={id}
+      // Jarak aman saat bagian ini dilompati tombol navigasi bawah.
+      className="relative scroll-mt-3 px-5 py-16 sm:py-24"
+    >
+      <Reveal
         className={`relative mx-auto w-full ${
           width === "wide" ? "max-w-3xl" : "max-w-xl"
         }`}
@@ -85,7 +93,8 @@ export function Section({
 
           {children}
         </div>
-      </div>
+      </Reveal>
     </section>
   );
 }
+

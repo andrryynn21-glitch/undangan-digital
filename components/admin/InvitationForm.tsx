@@ -23,8 +23,16 @@ import { generateSlugFromNames } from "@/lib/slug";
 import {
   CREATE_INVITATION_INITIAL_STATE,
   MAX_PAYMENT_ACCOUNTS,
+  MAX_QUOTE_LENGTH,
+  MAX_STORY_ITEMS,
+  MAX_STORY_TEXT_LENGTH,
+  MAX_STORY_TITLE_LENGTH,
 } from "@/lib/form-state";
-import type { InvitationRow, PaymentAccount } from "@/types/invitation";
+import type {
+  InvitationRow,
+  PaymentAccount,
+  StoryItem,
+} from "@/types/invitation";
 
 const TIER_LABELS: Record<TierType, string> = {
   silver: "Silver",
@@ -62,6 +70,23 @@ function toAccountRows(accounts: PaymentAccount[]): AccountRow[] {
   }
 
   return accounts.map((account, index) => ({ id: index, ...account }));
+}
+
+/** Baris "Kisah Kami" di form; `id` hanya untuk `key` React, tidak ikut dikirim. */
+interface StoryRow extends StoryItem {
+  id: number;
+}
+
+/**
+ * Kisah TIDAK dimulai dengan satu baris kosong seperti rekening.
+ *
+ * Amplop digital hampir selalu dipakai sehingga baris pertamanya menghemat satu
+ * klik, sedangkan kisah lebih sering tidak ada; memulai dengan baris kosong
+ * berarti setiap undangan menampilkan bagian "Kisah Kami" yang harus dihapus
+ * lebih dulu.
+ */
+function toStoryRows(items: StoryItem[] | undefined): StoryRow[] {
+  return (items ?? []).map((item, index) => ({ id: index, ...item }));
 }
 
 function Field({
@@ -175,6 +200,16 @@ export default function InvitationForm({ initial }: InvitationFormProps) {
   );
   const nextRowId = useRef(accountRows.length);
 
+  /**
+   * Baris kisah, dilacak lewat id dengan alasan yang sama seperti baris
+   * rekening: input di sini tak terkendali, jadi `key` yang stabil membuat
+   * menghapus satu tahap tidak menggeser isi tahap berikutnya.
+   */
+  const [storyRows, setStoryRows] = useState<StoryRow[]>(() =>
+    toStoryRows(initial?.event_data?.story)
+  );
+  const nextStoryId = useRef(storyRows.length);
+
   // Dipantau untuk menampilkan hint daerah yang sesuai tradisi terpilih.
   const [tradition, setTradition] = useState(
     typeof initial?.theme_config?.tradition === "string"
@@ -254,6 +289,9 @@ export default function InvitationForm({ initial }: InvitationFormProps) {
       // terbawa ke undangan berikutnya, tidak seperti foto-foto lain yang ikut
       // terhapus oleh penggantian `resetKey`.
       setBackgroundUrl("");
+      // Baris kisah juga dipegang di sini, jadi harus dikosongkan sendiri —
+      // komponennya tidak ikut di-reset oleh `resetKey`.
+      setStoryRows([]);
     }
   }
 
@@ -272,6 +310,18 @@ export default function InvitationForm({ initial }: InvitationFormProps) {
     setAccountRows((rows) =>
       rows.length <= 1 ? rows : rows.filter((row) => row.id !== id)
     );
+  }
+
+  function addStoryRow() {
+    setStoryRows((rows) =>
+      rows.length >= MAX_STORY_ITEMS
+        ? rows
+        : [...rows, { id: nextStoryId.current++, title: "", date: "", text: "" }]
+    );
+  }
+
+  function removeStoryRow(id: number) {
+    setStoryRows((rows) => rows.filter((row) => row.id !== id));
   }
 
   return (
@@ -358,6 +408,62 @@ export default function InvitationForm({ initial }: InvitationFormProps) {
             value={brideName}
             onChange={(event) => setBrideName(event.target.value)}
             placeholder="Ani Rahmawati"
+            className={fieldClass}
+          />
+        </Field>
+
+        {/*
+          Dua kolom di bawah ini sudah lama dibaca halaman undangan
+          (`CoupleProfile` menampilkan "Putra pertama dari …" dan tautan
+          Instagram), tetapi form-nya tidak pernah menyediakannya — jadi
+          fiturnya tidak bisa dipakai siapa pun. Sekarang bisa diisi.
+        */}
+        <Field
+          label="Keterangan Mempelai Pria"
+          hint="mis. Putra pertama dari Bapak … & Ibu …"
+        >
+          <input
+            type="text"
+            name="groomChildOf"
+            maxLength={120}
+            defaultValue={initial?.groom_data.childOf}
+            placeholder="Putra pertama dari Bapak Ahmad & Ibu Siti"
+            className={fieldClass}
+          />
+        </Field>
+
+        <Field
+          label="Keterangan Mempelai Wanita"
+          hint="mis. Putri kedua dari Bapak … & Ibu …"
+        >
+          <input
+            type="text"
+            name="brideChildOf"
+            maxLength={120}
+            defaultValue={initial?.bride_data.childOf}
+            placeholder="Putri kedua dari Bapak Rahman & Ibu Dewi"
+            className={fieldClass}
+          />
+        </Field>
+
+        <Field label="Instagram Mempelai Pria" hint="opsional, tanpa @">
+          <input
+            type="text"
+            name="groomInstagram"
+            maxLength={120}
+            defaultValue={initial?.groom_data.instagram}
+            placeholder="budi.santoso"
+            className={fieldClass}
+          />
+        </Field>
+
+        <Field label="Instagram Mempelai Wanita" hint="opsional, tanpa @">
+          <input
+            type="text"
+            name="brideInstagram"
+            maxLength={120}
+            defaultValue={initial?.bride_data.instagram}
+            placeholder="ani.rahmawati"
             className={fieldClass}
           />
         </Field>
@@ -508,6 +614,112 @@ export default function InvitationForm({ initial }: InvitationFormProps) {
           </div>
         </Group>
       ) : null}
+
+      {/*
+        Kutipan pembuka. Halaman undangan sudah membacanya sejak lama
+        (`event_data.quote`), tetapi tidak ada satu pun cara mengisinya dari
+        sini — kotak kutipannya selalu kosong di semua undangan.
+      */}
+      <Group
+        title="Kutipan Pembuka"
+        hint="opsional — ayat suci atau kata mutiara yang tampil di bawah nama mempelai"
+      >
+        <Field
+          label="Kutipan"
+          labelHidden
+        >
+          <textarea
+            name="quote"
+            rows={3}
+            maxLength={MAX_QUOTE_LENGTH}
+            defaultValue={initial?.event_data?.quote}
+            placeholder="Dan di antara tanda-tanda kekuasaan-Nya, Dia menciptakan untukmu pasangan dari jenismu sendiri…"
+            className={`${fieldClass} resize-none`}
+          />
+        </Field>
+        <p className="text-xs text-zinc-500">
+          Maksimal {MAX_QUOTE_LENGTH} karakter. Bagian ini tidak tampil bila
+          dikosongkan.
+        </p>
+      </Group>
+
+      <Group
+        title="Kisah Kami"
+        hint={`opsional, maksimal ${MAX_STORY_ITEMS} tahap — tampil sebagai timeline di undangan`}
+      >
+        {storyRows.length === 0 ? (
+          <p className="text-sm text-zinc-500">
+            Belum ada tahap kisah. Tambahkan bila ingin menceritakan perjalanan
+            kalian berdua.
+          </p>
+        ) : null}
+
+        {storyRows.map((row, index) => (
+          <div
+            key={row.id}
+            className="flex flex-col gap-3 rounded-xl border border-zinc-200 px-3.5 py-3.5 dark:border-zinc-800"
+          >
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-xs font-medium text-zinc-500">
+                Tahap {index + 1}
+              </p>
+
+              <button
+                type="button"
+                onClick={() => removeStoryRow(row.id)}
+                aria-label={`Hapus tahap kisah ke-${index + 1}`}
+                className="rounded-lg border border-zinc-300 px-3 py-1 text-xs text-zinc-600 transition-colors hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-400 dark:hover:bg-zinc-800"
+              >
+                Hapus
+              </button>
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-[1.4fr_1fr]">
+              <Field label="Judul Tahap" labelHidden={index > 0}>
+                <input
+                  type="text"
+                  name="storyTitle"
+                  defaultValue={row.title}
+                  maxLength={MAX_STORY_TITLE_LENGTH}
+                  placeholder="Pertemuan Pertama"
+                  className={fieldClass}
+                />
+              </Field>
+
+              <Field label="Waktu" labelHidden={index > 0}>
+                <input
+                  type="text"
+                  name="storyDate"
+                  defaultValue={row.date}
+                  maxLength={40}
+                  placeholder="Maret 2019"
+                  className={fieldClass}
+                />
+              </Field>
+            </div>
+
+            <Field label="Cerita" labelHidden={index > 0}>
+              <textarea
+                name="storyText"
+                defaultValue={row.text}
+                rows={3}
+                maxLength={MAX_STORY_TEXT_LENGTH}
+                placeholder="Kami dipertemukan di bangku kuliah, dan sejak itu…"
+                className={`${fieldClass} resize-none`}
+              />
+            </Field>
+          </div>
+        ))}
+
+        <button
+          type="button"
+          onClick={addStoryRow}
+          disabled={storyRows.length >= MAX_STORY_ITEMS}
+          className="self-start rounded-lg border border-dashed border-zinc-400 px-4 py-2 text-sm font-medium transition-colors hover:bg-zinc-100 disabled:opacity-40 disabled:hover:bg-transparent dark:border-zinc-600 dark:hover:bg-zinc-800"
+        >
+          + Tambah Tahap Kisah
+        </button>
+      </Group>
 
       <Group
         title="Desain Budaya"

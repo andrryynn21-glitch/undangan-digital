@@ -117,15 +117,15 @@ export default async function ManageInvitationPage({
   /**
    * Status RSVP per nama, huruf kecil sebagai kunci.
    *
-   * Daftarnya sudah terurut dari yang terbaru, jadi entri pertama untuk sebuah
-   * nama adalah jawaban terakhirnya — tamu yang berubah pikiran dan mengisi
-   * ulang form tidak akan tercatat memakai jawaban lamanya.
+   * Sumbernya `rsvp.latest` — jawaban TERBARU per nama, yang sudah disaring
+   * `getRsvps()`. Tamu yang berubah pikiran dan mengisi ulang form tidak lagi
+   * tercatat memakai jawaban lamanya, dan jumlah di statistik tidak lagi
+   * menghitung orang yang sama dua kali.
    */
   const rsvpByName: Record<string, RsvpStatus> = {};
 
-  for (const row of rsvp.data) {
-    const key = row.guest_name.trim().toLowerCase();
-    if (!(key in rsvpByName)) rsvpByName[key] = row.status;
+  for (const row of rsvp.latest) {
+    rsvpByName[row.guest_name.trim().toLowerCase()] = row.status;
   }
 
   const pending = guests.filter(
@@ -195,10 +195,17 @@ export default async function ManageInvitationPage({
               </p>
             ) : (
               <>
-                <div className="mt-4 flex justify-end">
+                <div className="mt-4 flex flex-wrap items-center justify-between gap-2">
+                  {rsvp.duplicateCount > 0 ? (
+                    <p className="text-xs text-zinc-500">
+                      Menampilkan {rsvp.latest.length} konfirmasi terbaru (
+                      {rsvp.duplicateCount} kiriman ganda diabaikan).
+                    </p>
+                  ) : <span />}
+
                   <CopyTextButton
                     label="Salin rekap"
-                    text={buildRecap(couple, rsvp.data, rsvp.summary, pending)}
+                    text={buildRecap(couple, rsvp.latest, rsvp.summary, pending)}
                   />
                 </div>
 
@@ -215,7 +222,7 @@ export default async function ManageInvitationPage({
                       </tr>
                     </thead>
                     <tbody>
-                      {rsvp.data.map((row) => (
+                      {rsvp.latest.map((row) => (
                         <tr
                           key={row.id}
                           className="border-b border-zinc-100 last:border-0 dark:border-zinc-900"

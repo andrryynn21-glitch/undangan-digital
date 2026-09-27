@@ -8,6 +8,8 @@ import type { FrameStyle } from "@/config/themes";
 import { CornerFrame, Divider, Monogram } from "@/components/invitation/decor";
 import type { DecorLevel } from "@/components/invitation/decor";
 import MusicPlayer from "@/components/invitation/MusicPlayer";
+import NavDock from "@/components/invitation/NavDock";
+import type { NavItem } from "@/components/invitation/NavDock";
 
 interface CoverGateProps {
   /** Nama panggilan mempelai pria */
@@ -45,6 +47,12 @@ interface CoverGateProps {
    * menolak audio yang berbunyi sendiri tanpa gestur pengguna.
    */
   musicUrl?: string | null;
+  /**
+   * Bagian yang ada di undangan ini, untuk tombol navigasi mengambang.
+   * Disusun halaman (bukan komponen ini) karena hanya halaman yang tahu bagian
+   * mana yang benar-benar dirender — galeri dan amplop digital bisa tidak ada.
+   */
+  sections?: NavItem[];
   frameStyle: FrameStyle;
   level: DecorLevel;
   /** Isi undangan yang tersembunyi sampai sampul dibuka */
@@ -69,6 +77,7 @@ export default function CoverGate({
   coverLuminance,
   guestName,
   musicUrl,
+  sections = [],
   frameStyle,
   level,
   children,
@@ -142,6 +151,13 @@ export default function CoverGate({
       {/* Musik menyusul ketukan "Buka Undangan", satu-satunya gestur yang
           dijamin ada sebelum tamu melihat isi undangan. */}
       <MusicPlayer src={musicUrl} active={opened} />
+
+      {/* Navigasi bagian. Diletakkan DI LUAR pembungkus `inv-reveal` dengan
+          alasan yang sama seperti pemutar musik: pembungkus itu memasang
+          animasi `transform`, dan elemen ber-transform menjadi acuan posisi
+          bagi keturunan `position: fixed` — tombolnya akan ikut tergeser
+          bersama bagian undangan alih-alih menempel di layar. */}
+      <NavDock active={opened} items={sections} />
 
       <div
         aria-hidden={opened}

@@ -19,10 +19,31 @@
   }
 }
 
+/**
+ * Halaman admin & halaman jualan memakai font Geist yang dimuat `next/font` di
+ * root layout. Sebelumnya baris ini menimpanya dengan Arial, sehingga berkas
+ * font Geist ikut terunduh di setiap kunjungan tanpa pernah terpakai.
+ * `var(--font-sans)` sudah dipetakan ke `--font-geist-sans` di blok `@theme`.
+ */
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-sans), system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+
+/**
+ * Lompatan antar-bagian dilakukan tombol navigasi undangan (lihat
+ * `NavDock.tsx`), jadi gulirnya dibuat halus. `scroll-padding-top` memberi
+ * jarak agar judul bagian tidak menempel ke tepi atas layar.
+ */
+@media (prefers-reduced-motion: no-preference) {
+  html {
+    scroll-behavior: smooth;
+  }
+}
+
+html {
+  scroll-padding-top: 1rem;
 }
 
 /* ==========================================================================
@@ -475,6 +496,87 @@ body {
 }
 
 /* --------------------------------------------------------------------------
+   Animasi masuk per bagian
+
+   SEBELUMNYA undangan hanya dianimasikan SEKALI, saat sampul dibuka
+   (`.inv-reveal` di bawah). Setelah itu seluruh halaman diam — bagian-bagian
+   yang jauh di bawah layar muncul begitu saja saat digulir, dan itu yang
+   membuat undangan terasa kaku. Aturan di sini memberi tiap bagian animasi
+   masuknya sendiri ketika ia mencapai layar.
+
+   KELAS INI TIDAK PERNAH DIPASANG SAAT RENDER PERTAMA. Komponen `Reveal`
+   memasangnya setelah mengamati posisi elemen; yang sudah terlihat di layar
+   pertama (yakni yang berada di balik sampul) dibiarkan apa adanya, jadi isi
+   undangan TETAP TERBACA walau JavaScript gagal dimuat sama sekali.
+   -------------------------------------------------------------------------- */
+
+.inv-scroll-reveal {
+  opacity: 0;
+  transform: translateY(28px);
+  transition:
+    opacity 0.85s cubic-bezier(0.16, 1, 0.3, 1),
+    transform 0.85s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.inv-scroll-reveal--shown {
+  opacity: 1;
+  transform: none;
+}
+
+/* --------------------------------------------------------------------------
+   Navigasi mengambang undangan
+   -------------------------------------------------------------------------- */
+
+@keyframes inv-dock-in {
+  from {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* Dipasang setelah sampul dibuka. Digeser sedikit ke atas lalu turun ke
+   tempatnya, sehingga terasa menyusul isi undangan alih-alih muncul mendadak. */
+.inv-dock {
+  animation: inv-dock-in 0.6s cubic-bezier(0.16, 1, 0.3, 1) 0.35s both;
+}
+
+/* Bagian aktif diberi penanda di atas ikonnya. */
+.inv-dock__item[aria-current="true"] {
+  color: var(--theme-primary);
+}
+
+.inv-dock__item[aria-current="true"]::before {
+  content: "";
+  position: absolute;
+  top: 0.35rem;
+  width: 1.1rem;
+  height: 2px;
+  border-radius: 999px;
+  background: currentColor;
+  opacity: 0.85;
+}
+
+/* --------------------------------------------------------------------------
+   Kisah kami (timeline)
+   -------------------------------------------------------------------------- */
+
+/* Garis penghubung antar-tahap. Titiknya sendiri digambar oleh komponen,
+   supaya warnanya bisa mengikuti tema tanpa variabel baru di sini. */
+.inv-story-line {
+  background: linear-gradient(
+    to bottom,
+    transparent,
+    color-mix(in srgb, var(--theme-accent) 60%, transparent) 12%,
+    color-mix(in srgb, var(--theme-accent) 60%, transparent) 88%,
+    transparent
+  );
+}
+
+/* --------------------------------------------------------------------------
    Hormati preferensi "kurangi gerakan"
    -------------------------------------------------------------------------- */
 
@@ -484,6 +586,16 @@ body {
   .inv-shimmer,
   .inv-pulse::before,
   .inv-pulse::after {
+    animation: none !important;
+  }
+
+  /* Tanpa animasi, geseran & pemudaran hanya menyisakan kedipan. Isi langsung
+     ditampilkan pada posisi akhirnya. */
+  .inv-scroll-reveal,
+  .inv-dock {
+    opacity: 1 !important;
+    transform: none !important;
+    transition: none !important;
     animation: none !important;
   }
 

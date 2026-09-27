@@ -68,3 +68,22 @@ export const GUEST_INITIAL_STATE: GuestFormState = {
  * berbeda angka.
  */
 export const MAX_PAYMENT_ACCOUNTS = 6;
+
+/**
+ * Batas isi "Kisah Kami" dan kutipan pembuka.
+ *
+ * Dipakai bersama oleh form admin (untuk menutup tombol "Tambah Kisah" dan
+ * memberi `maxLength` pada inputnya) dan Server Action (sebagai validasi
+ * sungguhan), supaya keduanya tidak pernah berbeda angka — pola yang sama
+ * dengan `MAX_PAYMENT_ACCOUNTS`.
+ */
+export const MAX_STORY_ITEMS = 8;
+export const MAX_STORY_TITLE_LENGTH = 60;
+export const MAX_STORY_TEXT_LENGTH = 400;
+
+/** Panjang maksimum kutipan / ayat pembuka undangan. */
+export const MAX_QUOTE_LENGTH = 300;
+
+/** Panjang maksimum keterangan orang tua ("Putra pertama dari …"). */
+export const MAX_CHILD_OF_LENGTH = 120;
+

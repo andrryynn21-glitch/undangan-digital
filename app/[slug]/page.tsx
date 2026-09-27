@@ -1,6 +1,6 @@
 import Image from "next/image";
 import { notFound } from "next/navigation";
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import type { CSSProperties } from "react";
 
 import CountdownTimer from "@/components/invitation/CountdownTimer";
@@ -8,6 +8,7 @@ import CoupleProfile from "@/components/invitation/CoupleProfile";
 import CoverGate from "@/components/invitation/CoverGate";
 import DigitalGift from "@/components/invitation/DigitalGift";
 import EventDetails from "@/components/invitation/EventDetails";
+import LoveStory from "@/components/invitation/LoveStory";
 import PhotoGallery from "@/components/invitation/PhotoGallery";
 import RsvpForm from "@/components/invitation/RsvpForm";
 import { Section } from "@/components/invitation/Section";
@@ -24,6 +25,8 @@ import {
   getThemeCssVars,
   getTierFeatures,
 } from "@/config/themes";
+import type { ThemeConfig } from "@/config/themes";
+import type { NavItem } from "@/components/invitation/NavDock";
 import {
   applyCulturalOverride,
   applyPaletteOverride,
@@ -37,6 +40,7 @@ import {
   getWishes,
   resolveGuestName,
 } from "@/lib/invitation";
+import type { InvitationRow } from "@/types/invitation";
 
 /** Tabel `invitations` tidak punya kolom judul, jadi teksnya tetap di sini. */
 const INVITATION_TITLE = "Undangan Pernikahan";
@@ -119,6 +123,57 @@ export async function generateMetadata({
   };
 }
 
+/**
+ * Tema akhir sebuah undangan: tema dasar → warna dari gambar acuan → override adat.
+ *
+ * Dipakai halaman ini DAN `generateViewport` di bawah, jadi urutan override-nya
+ * hanya ada di satu tempat. Kalau disalin, warna bilah peramban di HP bisa
+ * berbeda dari warna undangannya sendiri begitu salah satu salinan disesuaikan.
+ */
+function resolveTheme(invitation: InvitationRow): ThemeConfig {
+  const baseTheme = getThemeConfig(invitation.theme_id);
+
+  // Dua lapis override, dan URUTANNYA DISENGAJA: warna gambar acuan dulu, lalu
+  // adat. Adat menang karena dipilih atas alasan budaya, bukan estetika — warna
+  // batik tidak boleh digeser warna yang kebetulan menonjol di sebuah foto.
+  // Undangan lama yang `theme_config`-nya `{}` melewati keduanya tanpa
+  // perubahan sama sekali.
+  return applyCulturalOverride(
+    applyPaletteOverride(
+      baseTheme,
+      parseThemeImageData(invitation.theme_config).palette
+    ),
+    parseCulturalData(invitation.theme_config)
+  );
+}
+
+/**
+ * Warna bilah alamat peramban di HP.
+ *
+ * Ini detail kecil yang terasa besar di perangkat seluler: saat tamu menggulir
+ * sampai ujung, atau saat ia membuka daftar tab, warna bilahnya ikut warna
+ * undangan dan bukan abu-abu bawaan. Nilainya dibaca dari tema undangan, jadi
+ * tidak perlu diatur per undangan.
+ */
+export async function generateViewport({
+  params,
+}: PageProps<"/[slug]">): Promise<Viewport> {
+  const { slug } = await params;
+  const invitation = await getInvitationBySlug(slug).catch(() => null);
+
+  return {
+    width: "device-width",
+    initialScale: 1,
+    // Tamu boleh mencubit untuk memperbesar foto; mengunci skala akan
+    // menyulitkannya membaca, dan itu pelanggaran aksesibilitas.
+    maximumScale: 5,
+    colorScheme: "light",
+    themeColor: invitation
+      ? resolveTheme(invitation).colors.background
+      : undefined,
+  };
+}
+
 export default async function InvitationPage({
   params,
   searchParams,
@@ -131,20 +186,9 @@ export default async function InvitationPage({
     notFound();
   }
 
-  const baseTheme = getThemeConfig(invitation.theme_id);
   const features = getTierFeatures(invitation.tier);
-
-  // Dua lapis override, dan URUTANNYA DISENGAJA: warna gambar acuan dulu,
-  // lalu adat. Adat menang karena dipilih atas alasan budaya, bukan estetika —
-  // warna batik tidak boleh digeser warna yang kebetulan menonjol di sebuah
-  // foto. Undangan lama yang `theme_config`-nya `{}` melewati keduanya tanpa
-  // perubahan sama sekali.
+  const theme = resolveTheme(invitation);
   const themeImage = parseThemeImageData(invitation.theme_config);
-  const culturalData = parseCulturalData(invitation.theme_config);
-  const theme = applyCulturalOverride(
-    applyPaletteOverride(baseTheme, themeImage.palette),
-    culturalData
-  );
 
   // Banyaknya ornamen ditentukan paket, bentuk & warnanya ditentukan tema.
   const level = getDecorLevel(invitation.tier);
@@ -169,9 +213,37 @@ export default async function InvitationPage({
   const events = invitation.event_data?.events ?? [];
   const quote = invitation.event_data?.quote;
   const coverPhotoUrl = invitation.event_data?.cover_photo_url;
+  const story = invitation.event_data?.story ?? [];
   const galleryUrls = invitation.event_data?.gallery_urls ?? [];
   const accounts = invitation.payment_data?.accounts ?? [];
   const countdown = getCountdownEvent(events);
+
+  /**
+   * Bagian yang benar-benar ada di undangan ini, berurutan dari atas — inilah
+   * yang menjadi tombol navigasi mengambang.
+   *
+   * Daftarnya disusun di sini, bukan di dalam komponen navigasi, karena hanya
+   * halaman ini yang tahu bagian mana yang jadi dirender: galeri hanya muncul
+   * bila ada fotonya, amplop digital hanya bila ada rekeningnya, dan kisah
+   * hanya bila pasangan mengisinya. Tombol yang menunjuk bagian kosong lebih
+   * buruk daripada tidak ada tombol sama sekali.
+   */
+  const navItems: NavItem[] = [
+    { id: "pembuka", label: "Awal", icon: "home" },
+    { id: "mempelai", label: "Mempelai", icon: "couple" },
+    ...(story.length > 0
+      ? [{ id: "kisah", label: "Kisah", icon: "story" as const }]
+      : []),
+    { id: "acara", label: "Acara", icon: "event" },
+    ...(galleryUrls.length > 0
+      ? [{ id: "galeri", label: "Galeri", icon: "gallery" as const }]
+      : []),
+    { id: "rsvp", label: "RSVP", icon: "rsvp" },
+    ...(accounts.length > 0
+      ? [{ id: "hadiah", label: "Hadiah", icon: "gift" as const }]
+      : []),
+    { id: "ucapan", label: "Ucapan", icon: "wish" },
+  ];
 
   // Tanggal untuk sampul diformat di server supaya hasilnya sama di browser.
   const mainEvent = events[0];
@@ -220,11 +292,12 @@ export default async function InvitationPage({
         guestName={guestName}
         // Musik hanya untuk paket yang memang menjanjikannya.
         musicUrl={features.customMusic ? invitation.music_url : null}
+        sections={navItems}
         frameStyle={frameStyle}
         level={level}
       >
         {/* Pembuka */}
-        <Section frameStyle={frameStyle} level={level}>
+        <Section id="pembuka" frameStyle={frameStyle} level={level}>
           <div className="flex flex-col items-center gap-7 text-center">
             <p className="text-[0.68rem] tracking-[0.35em] uppercase opacity-65">
               {INVITATION_TITLE}
@@ -270,9 +343,25 @@ export default async function InvitationPage({
             ) : null}
 
             {quote ? (
-              <p className="inv-glass inv-sheen max-w-md rounded-3xl px-7 py-6 text-sm leading-relaxed italic opacity-85">
-                {quote}
-              </p>
+              // Kutipan pembuka (ayat / kata mutiara). Tanda petiknya digambar
+              // besar dan pudar di sudut supaya terbaca sebagai kutipan, bukan
+              // sebagai paragraf biasa yang kebetulan miring.
+              <figure className="inv-glass inv-sheen relative max-w-md rounded-3xl px-7 py-8">
+                <span
+                  className="pointer-events-none absolute top-2 left-4 text-5xl leading-none opacity-20"
+                  style={{
+                    fontFamily: "var(--theme-font-heading)",
+                    color: "var(--theme-primary)",
+                  }}
+                  aria-hidden="true"
+                >
+                  &ldquo;
+                </span>
+
+                <blockquote className="relative text-sm leading-relaxed italic opacity-85">
+                  {quote}
+                </blockquote>
+              </figure>
             ) : null}
           </div>
         </Section>
@@ -309,6 +398,20 @@ export default async function InvitationPage({
               eventLabel={countdown.event.label}
               level={level}
             />
+          </Section>
+        ) : null}
+
+        {/* Kisah kami — hanya muncul bila pasangan mengisinya */}
+        {story.length > 0 ? (
+          <Section
+            id="kisah"
+            frameStyle={frameStyle}
+            level={level}
+            eyebrow="Our Story"
+            title="Kisah Kami"
+            subtitle="Perjalanan yang membawa kami sampai di hari ini."
+          >
+            <LoveStory items={story} frameStyle={frameStyle} level={level} />
           </Section>
         ) : null}
 
@@ -400,7 +503,9 @@ export default async function InvitationPage({
         </Section>
 
         {/* Penutup */}
-        <footer className="relative px-5 pb-20 text-center">
+        {/* Padding bawah dilebihkan agar kalimat terakhir tidak pernah tertutup
+            tombol navigasi mengambang di paket apa pun. */}
+        <footer className="relative px-5 pb-32 text-center sm:pb-28">
           <div className="mx-auto flex max-w-xl flex-col items-center gap-5">
             <Divider frameStyle={frameStyle} level={level} />
 

@@ -1,7 +1,6 @@
 {
   "id": "minimal-gold",
   "name": "Minimal Gold",
-  "previewImage": "/themes/minimal-gold/preview.jpg",
   "tierRequirement": "silver",
   "colors": {
     "primary": "#C9A227",

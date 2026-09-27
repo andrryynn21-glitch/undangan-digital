@@ -143,7 +143,7 @@ export default function MusicPlayer({ src, active }: MusicPlayerProps) {
           onClick={toggle}
           aria-label={playing ? "Matikan musik" : "Nyalakan musik"}
           aria-pressed={playing}
-          className="fixed right-4 bottom-4 z-40 flex h-11 w-11 cursor-pointer items-center justify-center rounded-full transition-opacity hover:opacity-80 focus-visible:outline-2 focus-visible:outline-offset-2 motion-reduce:transition-none sm:right-6 sm:bottom-6"
+          className="fixed top-4 right-4 z-40 flex h-11 w-11 cursor-pointer items-center justify-center rounded-full transition-opacity hover:opacity-80 focus-visible:outline-2 focus-visible:outline-offset-2 motion-reduce:transition-none sm:top-6 sm:right-6"
           style={{
             backgroundColor: "var(--theme-primary)",
             color: "var(--theme-background)",

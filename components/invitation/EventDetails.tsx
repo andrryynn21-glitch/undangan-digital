@@ -8,6 +8,7 @@ import {
 import type { DecorLevel } from "@/components/invitation/decor";
 import type { FrameStyle } from "@/config/themes";
 import { formatEventDate, formatEventTime } from "@/lib/date";
+import { getMapsEmbedUrl, getMapsLink } from "@/lib/maps";
 import type { WeddingEvent } from "@/types/invitation";
 
 function CalendarIcon() {
@@ -165,17 +166,50 @@ export default function EventDetails({
             </p>
           </div>
 
-          {event.mapsUrl ? (
-            <a
-              href={event.mapsUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inv-btn relative mt-1 inline-flex items-center gap-2 rounded-full px-7 py-3 text-sm font-medium tracking-[0.04em]"
-            >
-              <PinIcon />
-              Lihat Lokasi
-            </a>
-          ) : null}
+          {/*
+            Peta dipasang langsung di undangan, bukan hanya sebagai tautan
+            keluar. Bagi tamu yang belum mengenal kotanya, melihat pin lokasi
+            tanpa harus meninggalkan undangan adalah pembeda yang besar —
+            terutama karena banyak tamu membukanya sambil menyetir atau di
+            perjalanan.
+
+            `loading="lazy"` disengaja: peta adalah satu-satunya sumber daya
+            pihak ketiga di halaman ini, dan tidak perlu diunduh sebelum tamu
+            benar-benar sampai ke bagian acara.
+          */}
+          <div
+            className="relative aspect-16/10 w-full overflow-hidden rounded-2xl"
+            style={{
+              border:
+                "1px solid color-mix(in srgb, var(--theme-accent) 32%, transparent)",
+              boxShadow:
+                "0 22px 40px -28px color-mix(in srgb, var(--theme-text) 70%, transparent)",
+            }}
+          >
+            <iframe
+              title={`Peta lokasi ${event.venueName}`}
+              src={getMapsEmbedUrl(event)}
+              loading="lazy"
+              referrerPolicy="no-referrer-when-downgrade"
+              allowFullScreen
+              className="h-full w-full border-0"
+            />
+          </div>
+
+          {/*
+            Tautan ini SELALU ada, termasuk saat admin lupa mengisi Link Google
+            Maps: `getMapsLink()` menyusun pencarian dari nama tempat & alamat,
+            sehingga tombolnya tidak pernah hilang.
+          */}
+          <a
+            href={getMapsLink(event)}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inv-btn relative mt-1 inline-flex items-center gap-2 rounded-full px-7 py-3 text-sm font-medium tracking-[0.04em]"
+          >
+            <PinIcon />
+            Buka Petunjuk Arah
+          </a>
         </article>
       ))}
     </div>

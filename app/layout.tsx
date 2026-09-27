@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { themeFontVariables } from "@/config/fonts";
@@ -32,6 +32,26 @@ export const metadata: Metadata = {
   description:
     "Undangan pernikahan digital yang bisa dibagikan lewat WhatsApp: hitung mundur, galeri foto, konfirmasi kehadiran, buku ucapan, dan amplop digital.",
   applicationName: "Undangan Digital",
+};
+
+/**
+ * Viewport bawaan untuk semua halaman.
+ *
+ * `themeColor` di sini hanya berlaku di halaman yang tidak menimpanya.
+ * Halaman undangan menyetel warnanya sendiri lewat `generateViewport` di
+ * `app/[slug]/page.tsx`, sehingga bilah peramban di HP ikut warna temanya.
+ *
+ * `maximumScale` sengaja TIDAK dibatasi: mencubit untuk memperbesar foto
+ * adalah cara utama tamu membaca nama dan alamat pada layar kecil.
+ */
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  colorScheme: "light dark",
+  themeColor: [
+    { media: "(prefers-color-scheme: light)", color: "#ffffff" },
+    { media: "(prefers-color-scheme: dark)", color: "#0a0a0a" },
+  ],
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

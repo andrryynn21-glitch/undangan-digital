@@ -11,7 +11,14 @@ import type {
   CreateInvitationState,
   RsvpFormState,
 } from "@/lib/form-state";
-import { MAX_PAYMENT_ACCOUNTS } from "@/lib/form-state";
+import {
+  MAX_CHILD_OF_LENGTH,
+  MAX_PAYMENT_ACCOUNTS,
+  MAX_QUOTE_LENGTH,
+  MAX_STORY_ITEMS,
+  MAX_STORY_TEXT_LENGTH,
+  MAX_STORY_TITLE_LENGTH,
+} from "@/lib/form-state";
 import {
   deleteInvitationRow,
   ensureUniqueSlug,
@@ -29,6 +36,7 @@ import type {
   PaymentAccount,
   PaymentData,
   RsvpStatus,
+  StoryItem,
   WeddingEvent,
 } from "@/types/invitation";
 
@@ -173,6 +181,28 @@ const HTTP_URL_PATTERN = /^https?:\/\/\S+$/;
 /** Nomor rekening / nomor HP e-wallet: angka dengan pemisah opsional. */
 const ACCOUNT_NUMBER_PATTERN = /^\+?[\d][\d\s.-]{3,29}$/;
 
+/**
+ * Nama pengguna Instagram: huruf, angka, titik, dan garis bawah.
+ * Tidak menerima "@" di depan maupun URL penuh — keduanya bentuk yang paling
+ * sering ditempel admin, dan menerimanya berarti menyimpan nilai yang tidak
+ * bisa dipakai `https://instagram.com/<username>`.
+ */
+const INSTAGRAM_PATTERN = /^[A-Za-z0-9._]{1,30}$/;
+
+/** Nama pengguna Instagram yang ditulis dengan "@" atau URL penuh. */
+function normalizeInstagram(raw: string): string | null {
+  if (!raw) return null;
+
+  return (
+    raw
+      .trim()
+      // "https://www.instagram.com/budi.ani/?hl=id" -> "budi.ani"
+      .replace(/^https?:\/\/(www\.)?instagram\.com\//i, "")
+      .replace(/^@/, "")
+      .split(/[/?#]/)[0]
+  );
+}
+
 /** Nama panggilan diambil dari kata pertama nama lengkap. */
 function toNickName(fullName: string): string {
   return fullName.split(/\s+/)[0];
@@ -283,6 +313,69 @@ function parsePaymentAccounts(
 }
 
 /**
+ * Menyusun "Kisah Kami" dari baris-baris form admin.
+ *
+ * Baris yang ketiga kolomnya kosong dilewati; baris yang terisi sebagian
+ * ditolak, karena tahap tanpa judul atau tanpa cerita hanya akan tampil sebagai
+ * kartu kosong di undangan. Urutannya mengikuti urutan baris di form — itulah
+ * urutan yang dilihat admin saat menyusunnya.
+ */
+function parseStoryItems(
+  formData: FormData
+): { items: StoryItem[]; error?: string } {
+  const titles = readStringList(formData, "storyTitle");
+  const dates = readStringList(formData, "storyDate");
+  const texts = readStringList(formData, "storyText");
+
+  const rowCount = Math.max(titles.length, dates.length, texts.length);
+  const items: StoryItem[] = [];
+
+  for (let index = 0; index < rowCount; index += 1) {
+    const title = titles[index] ?? "";
+    const date = dates[index] ?? "";
+    const text = texts[index] ?? "";
+
+    if (!title && !date && !text) continue;
+
+    if (!title || !text) {
+      return {
+        items: [],
+        error: `Kisah ke-${index + 1} belum lengkap. Isi judul dan ceritanya (tanggal boleh dikosongkan).`,
+      };
+    }
+
+    if (title.length > MAX_STORY_TITLE_LENGTH) {
+      return {
+        items: [],
+        error: `Judul kisah ke-${index + 1} terlalu panjang (maksimal ${MAX_STORY_TITLE_LENGTH} karakter).`,
+      };
+    }
+
+    if (text.length > MAX_STORY_TEXT_LENGTH) {
+      return {
+        items: [],
+        error: `Cerita ke-${index + 1} terlalu panjang (maksimal ${MAX_STORY_TEXT_LENGTH} karakter).`,
+      };
+    }
+
+    items.push({
+      title,
+      ...(date ? { date } : {}),
+      text,
+    });
+  }
+
+  if (items.length > MAX_STORY_ITEMS) {
+    return {
+      items: [],
+      error: `Maksimal ${MAX_STORY_ITEMS} tahap kisah per undangan.`,
+    };
+  }
+
+  return { items };
+}
+
+/**
  * Menyusun isi kolom `theme_config` dari data adat + gambar acuan tema.
  *
  * Warna gambar dibaca SEKALI di sini, saat admin menyimpan — bukan saat tamu
@@ -357,6 +450,11 @@ async function parseInvitationForm(
   const themeId = readString(formData, "themeId");
   const groomName = readString(formData, "groomName");
   const brideName = readString(formData, "brideName");
+  const groomChildOf = readString(formData, "groomChildOf");
+  const brideChildOf = readString(formData, "brideChildOf");
+  const groomInstagram = readString(formData, "groomInstagram");
+  const brideInstagram = readString(formData, "brideInstagram");
+  const quote = readString(formData, "quote");
   const eventName = readString(formData, "eventName");
   const eventDate = readString(formData, "eventDate");
   const eventTime = readString(formData, "eventTime");
@@ -431,6 +529,48 @@ async function parseInvitationForm(
   const payment = parsePaymentAccounts(formData);
   if (payment.error) return { error: payment.error };
 
+  /**
+   * Nama pengguna Instagram dinormalkan lebih dulu ("@nama" dan URL penuh
+   * diterima), lalu divalidasi. Mengembalikan `undefined` bila tidak cocok,
+   * supaya yang tampil di undangan selalu nama pengguna yang benar-benar bisa
+   * dibuka — bukan teks apa adanya yang berakhir jadi tautan rusak.
+   */
+  const groomIg = normalizeInstagram(groomInstagram);
+  const brideIg = normalizeInstagram(brideInstagram);
+
+  if (groomInstagram && (!groomIg || !INSTAGRAM_PATTERN.test(groomIg))) {
+    return {
+      error: `Instagram mempelai pria tidak valid: "${groomInstagram}". Isi nama pengguna saja (mis. budi.santoso).`,
+    };
+  }
+
+  if (brideInstagram && (!brideIg || !INSTAGRAM_PATTERN.test(brideIg))) {
+    return {
+      error: `Instagram mempelai wanita tidak valid: "${brideInstagram}". Isi nama pengguna saja (mis. ani.r).`,
+    };
+  }
+
+  if (groomChildOf.length > MAX_CHILD_OF_LENGTH) {
+    return {
+      error: `Keterangan orang tua mempelai pria terlalu panjang (maksimal ${MAX_CHILD_OF_LENGTH} karakter).`,
+    };
+  }
+
+  if (brideChildOf.length > MAX_CHILD_OF_LENGTH) {
+    return {
+      error: `Keterangan orang tua mempelai wanita terlalu panjang (maksimal ${MAX_CHILD_OF_LENGTH} karakter).`,
+    };
+  }
+
+  if (quote.length > MAX_QUOTE_LENGTH) {
+    return {
+      error: `Kutipan pembuka terlalu panjang (maksimal ${MAX_QUOTE_LENGTH} karakter).`,
+    };
+  }
+
+  const story = parseStoryItems(formData);
+  if (story.error) return { error: story.error };
+
   const event: WeddingEvent = {
     name: eventName,
     label: eventLabel,
@@ -460,15 +600,21 @@ async function parseInvitationForm(
       groom_data: {
         fullName: groomName,
         nickName: toNickName(groomName),
+        ...(groomChildOf ? { childOf: groomChildOf } : {}),
         ...(groomPhoto.url ? { photo_url: groomPhoto.url } : {}),
+        ...(groomIg ? { instagram: groomIg } : {}),
       },
       bride_data: {
         fullName: brideName,
         nickName: toNickName(brideName),
+        ...(brideChildOf ? { childOf: brideChildOf } : {}),
         ...(bridePhoto.url ? { photo_url: bridePhoto.url } : {}),
+        ...(brideIg ? { instagram: brideIg } : {}),
       },
       event_data: {
         events: [event],
+        ...(quote ? { quote } : {}),
+        ...(story.items.length > 0 ? { story: story.items } : {}),
         ...(coverPhoto.url ? { cover_photo_url: coverPhoto.url } : {}),
         ...(gallery.urls.length > 0 ? { gallery_urls: gallery.urls } : {}),
       },
