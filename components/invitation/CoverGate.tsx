@@ -7,6 +7,7 @@ import type { CSSProperties, ReactNode } from "react";
 import type { FrameStyle } from "@/config/themes";
 import { CornerFrame, Divider, Monogram } from "@/components/invitation/decor";
 import type { DecorLevel } from "@/components/invitation/decor";
+import { Gunungan } from "@/components/invitation/Batik";
 import MusicPlayer from "@/components/invitation/MusicPlayer";
 import NavDock from "@/components/invitation/NavDock";
 import type { NavItem } from "@/components/invitation/NavDock";
@@ -195,7 +196,7 @@ export default function CoverGate({
 
         <div
           className={`relative flex w-full max-w-sm flex-col items-center gap-6 px-8 py-14 text-center ${frameClass} ${
-            onPhoto ? "inv-sheen" : "inv-glass inv-sheen"
+            onPhoto ? "inv-sheen inv-cover-panel" : "inv-glass inv-sheen"
           }`}
           style={
             onPhoto
@@ -221,6 +222,11 @@ export default function CoverGate({
           >
             {eyebrow}
           </p>
+
+          {/* Gunungan sebagai puncak kartu: siluet lancip yang langsung
+              terbaca sebagai Jawa, sekaligus memberi hierarki vertikal —
+              mata tamu turun dari gunungan ke monogram ke nama. */}
+          <Gunungan className="inv-cover-crest" width={40} />
 
           <Monogram
             initials={`${groomName.charAt(0)}${brideName.charAt(0)}`}

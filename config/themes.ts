@@ -47,6 +47,36 @@ export interface ThemeColors {
   text: string;
   /** Warna aksen: ikon, garis ornamen, highlight */
   accent: string;
+
+  /**
+   * Token turunan, dihitung saat render oleh `lib/palette.ts`.
+   *
+   * SENGAJA OPSIONAL: file tema JSON tidak pernah mengisinya, dan validasi
+   * tema membuang field yang tidak dikenal. Field ini ada hanya karena
+   * `getThemeCssVars()` memakainya sebagai fallback bila belum dihitung,
+   * bukan karena tema harus menyediakannya.
+   */
+  canvas?: ThemeCanvasTokens;
+}
+
+/**
+ * Token warna turunan untuk komponen visual yang butuh lebih dari lima
+ * warna dasar: permukaan kartu, garis, teks sekunder, emas, dan warna teks
+ * di atas tombol.
+ */
+export interface ThemeCanvasTokens {
+  /** Kanvas gelap (teks terang) atau terang (teks gelap). */
+  mode: "dark" | "light";
+  /** Permukaan kartu di atas kanvas. */
+  surface: string;
+  /** Garis pemisah halus. */
+  border: string;
+  /** Teks sekunder: label, keterangan, timestamp. */
+  muted: string;
+  /** Emas metalik untuk aksen mewah. */
+  gold: string;
+  /** Teks di atas isian solid `primary`. */
+  onPrimary: string;
 }
 
 export interface ThemeFonts {
@@ -274,18 +304,67 @@ export function getThemesForTier(tier: TierType): ThemeConfig[] {
 }
 
 /**
+ * Apakah sebuah warna hex termasuk terang (latar terang) atau gelap.
+ *
+ * `themes.ts` tidak mengimpor dari `lib/palette.ts` dengan sengaja: berkas itu
+ * sudah mengimpor `ThemeColors` dari sini, jadi impor berbalik akan membuat
+ * siklus. Rumus ini sengaja dibuat ulang di sini, jauh lebih sederhana dari
+ * WCAG — yang dibutuhkan di titik ini cuma arah kontras, bukan audit
+ * kontras, dan nilainya sudah dijamin benar oleh `lib/palette.ts` untuk
+ * semua tema yang punya token `canvas`.
+ */
+function isLightColor(hex: string): boolean {
+  const match = /^#?([0-9a-f]{6})$/i.exec(hex.trim());
+  if (!match) return true;
+
+  const n = parseInt(match[1], 16);
+  const [r, g, b] = [(n >> 16) & 255, (n >> 8) & 255, n & 255];
+
+  // Rec. 601 — cukup untuk membedakan "krem" dari "coklat tua".
+  return (r * 299 + g * 587 + b * 114) / 1000 > 140;
+}
+
+/**
  * Mengubah tema menjadi CSS custom properties.
  * Dipasang sekali di elemen pembungkus undangan, lalu komponen anak cukup
  * memakai `var(--theme-primary)` dan sejenisnya.
+ *
+ * Token `canvas` ikut diteruskan karena komponen visual baru (kaca, garis,
+ * emas) membutuhkannya. Kalau tema belum punya token itu — misalnya file
+ * tema JSON yang tidak pernah melewati `lib/palette.ts` — nilainya diturunkan
+ * dari lima warna dasar, jadi `--theme-surface` dkk. tetap selalu terisi dan
+ * komponen tidak perlu menangani kasus kosong.
  */
 export function getThemeCssVars(theme: ThemeConfig): Record<string, string> {
+  const colors = theme.colors;
+
+  // Penurunan untuk tema tanpa token kanvas, dipilih supaya tetap waras:
+  // `surface` mengikuti `secondary`, `muted` mengikuti `text`, `gold` mengikuti
+  // `accent`. `mode` disimpulkan dari terang-tidaknya `background`, karena
+  // itulah yang menentukan arah kontras semua token lain.
+  const fallback: ThemeCanvasTokens = {
+    mode: isLightColor(colors.background) ? "light" : "dark",
+    surface: colors.secondary,
+    border: colors.accent,
+    muted: colors.text,
+    gold: colors.accent,
+    onPrimary: isLightColor(colors.primary) ? "#12100E" : "#FFFDF9",
+  };
+
+  const tokens = colors.canvas ?? fallback;
+
   return {
-    "--theme-primary": theme.colors.primary,
-    "--theme-secondary": theme.colors.secondary,
-    "--theme-background": theme.colors.background,
-    "--theme-text": theme.colors.text,
-    "--theme-accent": theme.colors.accent,
+    "--theme-primary": colors.primary,
+    "--theme-secondary": colors.secondary,
+    "--theme-background": colors.background,
+    "--theme-text": colors.text,
+    "--theme-accent": colors.accent,
     "--theme-font-heading": theme.fonts.headingFont,
     "--theme-font-body": theme.fonts.bodyFont,
+    "--theme-surface": tokens.surface,
+    "--theme-border": tokens.border,
+    "--theme-muted": tokens.muted,
+    "--theme-gold": tokens.gold,
+    "--theme-on-primary": tokens.onPrimary,
   };
 }

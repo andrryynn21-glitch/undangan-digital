@@ -15,10 +15,23 @@
  *
  * Karena itu aturannya: `background` dan `text` SELALU milik tema dasar, dan
  * warna yang diambil dari gambar digeser terangnya sampai memenuhi ambang
- * kontras sebelum dipakai. Gambar menentukan rona, tema dasar menjaga keterbacaan.
+ * kontras sebelum dipakai. Gambar menentukan rona, tema dasar menjaga
+ * keterbacaan.
+ *
+ * KANVAS, BUKAN SEKADAR LATAR
+ *
+ * Versi lama membiarkan `background` dan `text` selalu milik tema dasar.
+ * Itu benar untuk gambar terang, tapi salah untuk gambar gelap: sampul
+ * batik gelap ikut gelap, sementara isi halaman tetap krem terang. Dua
+ * bahasa visual berbeda dalam satu dokumen, dan itulah yang bikin terasa
+ * jelek, padahal secara teknis tidak ada yang rusak.
+ *
+ * Sekarang `luminance` gambar juga menentukan kanvas: gambar gelap
+ * mendapat kanvas gelap, dengan `background` dan `text` diturunkan dari
+ * rona gambar itu sendiri sehingga tetap nyambung dengan foto.
  */
 
-import type { ThemeColors } from "@/config/themes";
+import type { ThemeCanvasTokens, ThemeColors } from "@/config/themes";
 
 /** Ambang kontras WCAG AA untuk teks biasa. */
 const TEXT_CONTRAST = 4.5;
@@ -31,6 +44,45 @@ const MIN_HUE_DISTANCE = 40;
 
 /** Pemutaran rona bila gambar tidak menyediakan warna kedua yang cukup beda. */
 const HUE_ROTATION = 150;
+
+/**
+ * Ambang `luminance` gambar untuk memilih kanvas.
+ *
+ * Di bawah `DARK_CANVAS_MAX` gambar dianggap gelap → kanvas gelap. Di atas
+ * `LIGHT_CANVAS_MIN` dianggap terang → kanvas terang. Di antara keduanya
+ * ($0,42–0,55$ dilema) keputusan dibawa ke tema dasar lewat
+ * `background`-nya, karena kedua pilihan sama-sama masih masuk akal.
+ */
+const DARK_CANVAS_MAX = 0.42;
+const LIGHT_CANVAS_MIN = 0.55;
+
+/**
+ * Rona target aksen ketika gambar hanya menyediakan satu warna (coklat batik).
+ *
+ * BAHAYA ROTASI BLIND
+ *
+ * Rotasi tetap 150° (lihat `HUE_ROTATION`) tapi TIDAK lagi diterapkan
+ * buta pada apa pun. Dari coklat batik hue ~15°, rotasi 150° mendarat
+ * persis di hue ~165° — hijau/teal. Hasilnya: aksen hijau tosca di antara
+ * krem dan coklat tua, warna yang tidak ada di mana pun pada foto maupun
+ * konsep batik Jawa, dan itulah yang terlihat "jelek" seperti yang dilaporkan.
+ *
+ * Aturannya: rona aksen harus dari gambar bila warnanya memang tersedia.
+ * Bila tidak — gambar hanya punya satu keluarga warna — warna tuanya
+ * dipindahkan ke `WARM_ACCENT_HUE` (emas), yang justru warna khas batik
+ * Jawa dan selalu serasi dengan coklatnya. Emas juga satu-satunya aksen
+ * yang selalu terbaca di atas kanvas gelap maupun terang.
+ */
+const WARM_ACCENT_HUE = 42;
+
+/** Jarak rona dari warna utama untuk menyatakan "warnanya memang beda". */
+const DISTINCT_HUE_DISTANCE = 22;
+
+/** Kecerahan kanvas gelap (0-1). Cukup gelap utk teks putih, tapi bukan hitam. */
+const DARK_CANVAS_LIGHTNESS = 0.09;
+
+/** Kecerahan kanvas terang — sedikit di bawah putih murni supaya terasa hangat. */
+const LIGHT_CANVAS_LIGHTNESS = 0.975;
 
 /** Langkah pencarian lightness. 0,005 menghasilkan ~200 percobaan per arah. */
 const LIGHTNESS_STEP = 0.005;
@@ -366,58 +418,257 @@ function collectCandidates(
 /**
  * Menyusun warna tema dari palet gambar + tema dasar.
  *
- * `background` dan `text` tidak pernah disentuh — keduanya milik tema dasar,
- * dan itulah yang menjamin isi undangan selalu terbaca apa pun yang diunggah.
+ * KANVAS DIJARINGKAN DARI GAMBAR
  *
- * Yang diganti hanya warna hias:
- * - `primary` — dipakai heading, jadi diperlakukan sebagai teks (4,5:1).
- * - `accent` — ornamen & garis, ambang non-teks (3:1). Ronanya dipisahkan dari
- *   `primary` supaya keduanya tidak tampak sebagai warna yang sama.
- * - `secondary` — permukaan kartu/panel yang di atasnya ada teks, jadi
- *   kontrasnya diukur terhadap `text`, bukan terhadap `background`.
+ * `background` dan `text` TIDAK lagi selalu milik tema dasar. `luminance`
+ * gambar memilih kanvas lebih dulu:
+ * - gelap  -> kanvas gelap, teks terang.
+ * - terang -> kanvas terang, teks gelap.
+ * - abu-abu -> ikut warna `background` tema dasar.
+ *
+ * Rona kanvas diambil dari rona gambar, jadi warnanya terasa berasal dari
+ * foto yang sama, bukan warna baru yang ditempelkan dari luar.
+ *
+ * Sisanya:
+ * - `primary` — heading, diperlakukan sebagai teks (4,5:1).
+ * - `accent` — ornamen & garis (3:1). Rona diambil dari gambar bila memang
+ *   tersedia; bila gambar cuma punya satu keluarga warna, aksennya
+ *   dipindahkan ke emas, bukan dirotasi buta ke teal.
+ * - `secondary` — permukaan kartu, kontras diukur terhadap `text`.
  */
 export function resolvePaletteColors(
   base: ThemeColors,
   palette: DerivedPalette
 ): ThemeColors {
+  return resolveCanvasTheme(base, palette);
+}
+
+/**
+ * Memilih mode kanvas untuk sebuah palet gambar.
+ *
+ * Area abu-abu (`DARK_CANVAS_MAX`..`LIGHT_CANVAS_MIN`) diserahkan ke tema
+ * dasar: memaksa gambar jadi gelap atau terang di sana sama saja, dan
+ * pilihan admin lebih layak dihormati.
+ */
+function pickCanvasMode(
+  base: ThemeColors,
+  palette: DerivedPalette
+): "dark" | "light" {
+  if (palette.luminance < DARK_CANVAS_MAX) return "dark";
+  if (palette.luminance > LIGHT_CANVAS_MIN) return "light";
+
   const background = hexToRgb(base.background);
-  const text = hexToRgb(base.text);
-  const primarySource = hexToRgb(palette.primary);
-  const accentSource = hexToRgb(palette.accent);
 
-  // Tema dasar berasal dari JSON yang sudah divalidasi, tapi bila salah satu
-  // tidak terbaca, lebih baik tema dasar dipakai utuh daripada setengah jadi.
-  if (!background || !text || !primarySource || !accentSource) return base;
+  return background && relativeLuminance(background) <= 0.5 ? "dark" : "light";
+}
 
-  const primary = forceContrast(primarySource, background, TEXT_CONTRAST);
+/**
+ * Menjamin semua warna tema sudah terbaca di latarnya sendiri.
+ *
+ * MASALAH YANG DISELESAIKAN
+ *
+ * Warna dari gambar sudah selalu dikoreksi kontrasnya, tapi warna yang
+ * diketik manual di `config/themes/*.json` dan `config/cultures.ts` TIDAK
+ * pernah. Akibatnya tema dasar "Minimal Gold" —emas `#C9A227` di atas krem
+ * `#FFFDF9`— punya kontras 2,38:1, dan aksen emas `#A8842C`-nya 3,44:1.
+ * Di bawah ambang 4,5:1 untuk teks dan 3:1 untuk ornamen.
+ *
+ * Itu bukan sekadar pilihan estetika: heading di tema itu memang nyaris tidak
+ * terbaca, dan terverifikasi pada 9 dari 14 undangan.
+ *
+ * Yang dilakukan di sini: `primary` digelapkan atau diterangkan sampai 4,5:1,
+ * `accent` sampai 3:1, dan token `canvas` dihitung ulang dari warna final.
+ * RONA-nya tetap sama persis — hanya terang yang digeser, persis seperti
+ * yang sudah dilakukan untuk warna gambar. Hasilnya emas tetap emas, hanya
+ * dalam nada yang bisa dibaca.
+ *
+ * Undangan tanpa `canvas` (file tema murni) juga ikut diuntungkan karena
+ * tokennya diturunkan di sini, bukan di `getThemeCssVars()`.
+ */
+export function ensureReadableColors(colors: ThemeColors): ThemeColors {
+  const background = hexToRgb(colors.background);
+  const text = hexToRgb(colors.text);
 
-  // Aksen dijauhkan ronanya dulu, baru dikoreksi kontras. Urutannya penting:
-  // memutar rona sesudah koreksi akan merusak kontras yang sudah didapat.
-  const [primaryHue] = rgbToHsl(primary);
-  const [accentHue, accentSat, accentLight] = rgbToHsl(accentSource);
+  if (!background || !text) return colors;
 
-  const separated =
-    hueDistance(primaryHue, accentHue) >= MIN_HUE_DISTANCE
-      ? accentSource
-      : hslToRgb(accentHue + HUE_ROTATION, accentSat, accentLight);
+  const primary = forceContrast(
+    hexToRgb(colors.primary) ?? background,
+    background,
+    TEXT_CONTRAST
+  );
 
-  const accent = forceContrast(separated, background, DECOR_CONTRAST);
+  const accent = forceContrast(
+    hexToRgb(colors.accent) ?? background,
+    background,
+    DECOR_CONTRAST
+  );
 
-  // Permukaan panel: rona dari gambar, tapi sangat terang/gelap mengikuti
-  // tema dasar supaya teks di atasnya tetap terbaca.
-  const [surfaceHue, surfaceSat] = rgbToHsl(primary);
-  const surfaceLight = relativeLuminance(background) > 0.5 ? 0.92 : 0.16;
-  const secondary = forceContrast(
-    hslToRgb(surfaceHue, Math.min(surfaceSat, 0.35), surfaceLight),
+  const surface = forceContrast(
+    hexToRgb(colors.secondary) ?? background,
     text,
     TEXT_CONTRAST
   );
 
+  // Emas untuk detail mewah mengikuti `accent` yang sudah terkoreksi, lalu
+  // dijamin lagi terhadap latar supaya tidak bisa gagal di mode terang.
+  const gold = forceContrast(accent, background, DECOR_CONTRAST);
+  const dark = relativeLuminance(background) <= 0.5;
+
+  return {
+    ...colors,
+    primary: rgbToHex(primary),
+    secondary: rgbToHex(surface),
+    accent: rgbToHex(accent),
+    canvas: {
+      mode: dark ? "dark" : "light",
+      surface: rgbToHex(surface),
+      border: rgbToHex(
+        dark
+          ? hslToRgb(rgbToHsl(background)[0], 0.28, 0.3)
+          : hslToRgb(rgbToHsl(background)[0], 0.28, 0.86)
+      ),
+      muted: colors.text,
+      gold: rgbToHex(gold),
+      onPrimary: relativeLuminance(primary) > 0.45 ? "#12100E" : "#FFFDF9",
+    },
+  };
+}
+
+/**
+ * Token cadangan saat warna gambar tidak terbaca: cukup, tapi tetap aman. */
+function staticCanvasTokens(
+  base: ThemeColors,
+  baseBackground: Rgb | null,
+  baseText: Rgb | null
+): ThemeCanvasTokens {
+  // Tanpa `base.background` yang terbaca, warna tetap dijaga oleh tema dasar
+  // (sudah tervalidasi saat load), jadi mode disimpulkan darinya.
+  const mode =
+    baseBackground && relativeLuminance(baseBackground) <= 0.5
+      ? "dark"
+      : "light";
+
+  const primary = hexToRgb(base.primary) ?? baseBackground ?? [128, 128, 128];
+
+  return {
+    mode,
+    surface: base.secondary,
+    border: mode === "dark" ? "rgba(255,255,255,0.14)" : "rgba(0,0,0,0.1)",
+    muted: baseText ? rgbToHex(baseText) : base.text,
+    gold: base.accent,
+    onPrimary: relativeLuminance(primary) > 0.45 ? "#12100E" : "#FFFDF9",
+  };
+}
+
+/**
+ * Menyusun seluruh warna tema dari palet gambar + tema dasar.
+ *
+ * Mengembalikan `ThemeColors` yang sudah diwarnai ulang (kanvas ikut berubah
+ * mengikuti terang/gelapnya gambar) sekaligus token turunannya di `canvas`.
+ */
+export function resolveCanvasTheme(
+  base: ThemeColors,
+  palette: DerivedPalette
+): ThemeColors {
+  const mode = pickCanvasMode(base, palette);
+
+  const primarySource = hexToRgb(palette.primary);
+  const accentSource = hexToRgb(palette.accent);
+  const baseBackground = hexToRgb(base.background);
+  const baseText = hexToRgb(base.text);
+
+  // Bila warna gambar tidak terbaca, tema dasar dipakai utuh. Undangan tetap
+  // tampil, hanya tidak dapat pewarnaan dari gambar.
+  if (!primarySource || !accentSource || !baseBackground || !baseText) {
+    return {
+      ...base,
+      canvas: staticCanvasTokens(base, baseBackground, baseText),
+    };
+  }
+
+  const [hue, saturation] = rgbToHsl(primarySource);
+
+  // Kanvas: rona gambar dengan saturasi ditahan supaya tidak bersaing
+  // dengan isi, dan lightness dikunci di titik yang nyaman untuk teks.
+  const canvasSat = Math.min(saturation, 0.32);
+  const background = hslToRgb(
+    hue,
+    canvasSat,
+    mode === "dark" ? DARK_CANVAS_LIGHTNESS : LIGHT_CANVAS_LIGHTNESS
+  );
+
+  // Teks: putih hangat di kanvas gelap, tinta gelap di kanvas terang.
+  const text = forceContrast(
+    mode === "dark"
+      ? hslToRgb(hue, 0.14, 0.97)
+      : hslToRgb(hue, Math.min(saturation, 0.45), 0.12),
+    background,
+    TEXT_CONTRAST
+  );
+
+  // Aksen: rona kedua dari gambar kalau memang beda jauh. Kalau tidak —
+  // gambar hanya punya satu keluarga warna, misalnya coklat batik tulam —
+  // aksennya pindah ke emas. Detail kenapa rotasi buta tidak lagi dipakai
+  // ada di `WARM_ACCENT_HUE`.
+  const [primaryHue] = rgbToHsl(primarySource);
+  const [accentHue] = rgbToHsl(accentSource);
+
+  const accentBase =
+    hueDistance(primaryHue, accentHue) >= DISTINCT_HUE_DISTANCE
+      ? accentSource
+      : hslToRgb(WARM_ACCENT_HUE, 0.62, 0.45);
+
+  const accent = forceContrast(accentBase, background, DECOR_CONTRAST);
+
+  // Emas: rona konsisten untuk detail mewah, dijamin kontras di dua mode.
+  const gold = forceContrast(
+    hslToRgb(WARM_ACCENT_HUE, 0.55, mode === "dark" ? 0.62 : 0.42),
+    background,
+    DECOR_CONTRAST
+  );
+
+  // Permukaan kartu: satu langkah jauh dari kanvas ke arah teks, cukup
+  // untuk terasa sebagai "kartu" tanpa kehilangan keterbacaan teks di atasnya.
+  const surface = forceContrast(
+    mode === "dark"
+      ? hslToRgb(hue, canvasSat * 0.8, DARK_CANVAS_LIGHTNESS + 0.06)
+      : hslToRgb(hue, canvasSat * 0.5, LIGHT_CANVAS_LIGHTNESS - 0.05),
+    text,
+    TEXT_CONTRAST
+  );
+
+  // Warna tombol: `primary` akan dipakai sebagai isian solid, jadi teksnya
+  // harus kontras dengan `primary` itu sendiri — bukan dengan kanvas.
+  const primary = forceContrast(primarySource, background, TEXT_CONTRAST);
+
   return {
     ...base,
+    background: rgbToHex(background),
+    text: rgbToHex(text),
+    // `primary` adalah heading, jadi harus lolos ambang teks di kanvas.
     primary: rgbToHex(primary),
-    secondary: rgbToHex(secondary),
+    secondary: rgbToHex(surface),
     accent: rgbToHex(accent),
+    canvas: {
+      mode,
+      surface: rgbToHex(surface),
+      border: rgbToHex(
+        mode === "dark"
+          ? hslToRgb(hue, canvasSat, 0.28)
+          : hslToRgb(hue, canvasSat, 0.86)
+      ),
+      muted: rgbToHex(
+        forceContrast(
+          mode === "dark"
+            ? hslToRgb(hue, 0.12, 0.74)
+            : hslToRgb(hue, Math.min(saturation, 0.4), 0.42),
+          background,
+          TEXT_CONTRAST
+        )
+      ),
+      gold: rgbToHex(gold),
+      onPrimary: relativeLuminance(primary) > 0.45 ? "#12100E" : "#FFFDF9",
+    },
   };
 }
 

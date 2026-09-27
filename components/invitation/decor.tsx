@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 
 import type { FrameStyle, TierType } from "@/config/themes";
+import { BatikPattern, getBatikVariant } from "@/components/invitation/Batik";
 
 /**
  * Ornamen & lapisan dekorasi undangan.
@@ -371,74 +372,16 @@ export function CornerFrame({
 // Latar halaman
 // ============================================
 
-/** Pola motif berulang untuk latar (Premium & VIP). */
+/**
+ * Pola motif berulang untuk latar (Premium & VIP).
+ *
+ * Sekarang memakai motif batik sungguhan dari `Batik.tsx` (kawung / parang /
+ * ceplok) yang dipilih mengikuti `frameStyle` tema, bukan bentuk geometris
+ * generik. Warnanya tetap `currentColor` supaya tidak ada warna yang
+ * di-hardcode di sini.
+ */
 function BackdropPattern({ frameStyle }: { frameStyle: FrameStyle }) {
-  const pattern =
-    frameStyle === "floral" ? (
-      <pattern
-        id="inv-bg-pattern"
-        width="80"
-        height="80"
-        patternUnits="userSpaceOnUse"
-      >
-        <g fill="currentColor" opacity="0.6">
-          <ellipse cx="20" cy="16" rx="2.6" ry="6" />
-          <ellipse cx="20" cy="16" rx="6" ry="2.6" />
-          <circle cx="20" cy="16" r="1.6" />
-          <ellipse cx="60" cy="56" rx="2.6" ry="6" />
-          <ellipse cx="60" cy="56" rx="6" ry="2.6" />
-          <circle cx="60" cy="56" r="1.6" />
-        </g>
-        <g fill="currentColor" opacity="0.35">
-          <circle cx="60" cy="18" r="1.5" />
-          <circle cx="20" cy="58" r="1.5" />
-          <circle cx="40" cy="37" r="1" />
-        </g>
-      </pattern>
-    ) : frameStyle === "arch" ? (
-      <pattern
-        id="inv-bg-pattern"
-        width="64"
-        height="76"
-        patternUnits="userSpaceOnUse"
-      >
-        <path
-          d="M16 62V32a16 16 0 0 1 32 0v30"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="1"
-          opacity="0.55"
-        />
-        <circle cx="32" cy="69" r="1.4" fill="currentColor" opacity="0.4" />
-      </pattern>
-    ) : (
-      <pattern
-        id="inv-bg-pattern"
-        width="56"
-        height="56"
-        patternUnits="userSpaceOnUse"
-      >
-        <path
-          d="M28 5l23 23-23 23L5 28z"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="0.9"
-          opacity="0.5"
-        />
-        <circle cx="28" cy="28" r="1.3" fill="currentColor" opacity="0.45" />
-      </pattern>
-    );
-
-  return (
-    <svg
-      className="absolute inset-0 h-full w-full"
-      style={{ color: "var(--theme-accent)" }}
-      aria-hidden="true"
-    >
-      <defs>{pattern}</defs>
-      <rect width="100%" height="100%" fill="url(#inv-bg-pattern)" />
-    </svg>
-  );
+  return <BatikPattern variant={getBatikVariant(frameStyle)} />;
 }
 
 /**
@@ -476,15 +419,23 @@ export function Backdrop({
           jejak warna & bentuknya, bukan detailnya — dan blur pada tepi gambar
           menyisakan pinggiran pucat bila tidak diperbesar.
           Memakai CSS background, bukan `next/image`, karena berkas ini komponen
-          server tanpa ukuran layout yang perlu dihitung. */}
+          server tanpa ukuran layout yang perlu dihitung.
+
+          `mix-blend-mode: soft-light` adalah bagian yang paling penting di
+          sini. Tanpa blend, gambar gelap yang di-blur selalu menggeser
+          seluruh halaman jadi kelabu — di kanvas terang ia hanya menambal
+          dengan abu-abu, sedangkan di kanvas gelap ia menekan teks.
+          `soft-light` membiarkan gambar MEMPERKUAT kanvas yang sudah ada:
+          gelap di atas gelap jadi lebih pekat, terang di atas terang tetap
+          terang, dan tidak ada satu pun yang merusak keterbacaan teks. */}
       {backgroundUrl && profile.patternOpacity > 0 ? (
         <div
-          className="absolute inset-0"
+          className="absolute inset-0 inv-blend-soft"
           style={{
             backgroundImage: `url("${backgroundUrl}")`,
             backgroundSize: "cover",
             backgroundPosition: "center",
-            opacity: profile.patternOpacity,
+            opacity: profile.patternOpacity * 2.2,
             filter: "blur(28px)",
             transform: "scale(1.1)",
           }}
@@ -494,7 +445,7 @@ export function Backdrop({
 
       {profile.pattern ? (
         <div
-          className="absolute inset-0"
+          className="absolute inset-0 inv-batik-drift"
           style={{ opacity: profile.patternOpacity }}
         >
           <BackdropPattern frameStyle={frameStyle} />

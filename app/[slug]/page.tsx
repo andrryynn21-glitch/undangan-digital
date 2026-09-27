@@ -30,6 +30,7 @@ import type { NavItem } from "@/components/invitation/NavDock";
 import {
   applyCulturalOverride,
   applyPaletteOverride,
+  ensureReadableTheme,
   parseCulturalData,
   parseThemeImageData,
 } from "@/lib/culture-theme";
@@ -133,17 +134,26 @@ export async function generateMetadata({
 function resolveTheme(invitation: InvitationRow): ThemeConfig {
   const baseTheme = getThemeConfig(invitation.theme_id);
 
-  // Dua lapis override, dan URUTANNYA DISENGAJA: warna gambar acuan dulu, lalu
-  // adat. Adat menang karena dipilih atas alasan budaya, bukan estetika — warna
-  // batik tidak boleh digeser warna yang kebetulan menonjol di sebuah foto.
-  // Undangan lama yang `theme_config`-nya `{}` melewati keduanya tanpa
-  // perubahan sama sekali.
-  return applyCulturalOverride(
-    applyPaletteOverride(
-      baseTheme,
-      parseThemeImageData(invitation.theme_config).palette
-    ),
-    parseCulturalData(invitation.theme_config)
+  // Tiga lapis, dan URUTANNYA DISENGAJA:
+  // 1. warna gambar acuan (gambar gelap → kanvas gelap),
+  // 2. override adat (menang atas gambar karena alasan budaya),
+  // 3. koreksi kontras terakhir untuk SEMUA warna yang muncul di 1 & 2.
+  //
+  // Lapis 3 harus paling akhir: override adat menimpa `primary`/`accent`
+  // dengan warna budayanya sendiri, dan warna-warna itu belum pernah diuji
+  // kontrasnya. Tanpa lapis 3, tema dasar "Minimal Gold" bahkan keluar
+  // dengan emas di krem pada rasio 2,38:1 — heading nyaris tak terbaca.
+  //
+  // Undangan lama yang `theme_config`-nya `{}` melewati 1 dan 2 tanpa
+  // perubahan, tapi tetap mendapat manfaat lapis 3.
+  return ensureReadableTheme(
+    applyCulturalOverride(
+      applyPaletteOverride(
+        baseTheme,
+        parseThemeImageData(invitation.theme_config).palette
+      ),
+      parseCulturalData(invitation.theme_config)
+    )
   );
 }
 
@@ -265,6 +275,10 @@ export default async function InvitationPage({
   return (
     <main
       className="inv-page min-h-screen w-full"
+      // Mode kanvas dibaca CSS untuk menyetel permukaan, border, dan kaca.
+      // Nilai ini dihitung di `lib/palette.ts` dari terang/gelapnya gambar
+      // acuan, jadi tidak pernah bertentangan dengan warna yang terpasang.
+      data-theme-canvas={theme.colors.canvas?.mode ?? "light"}
       style={
         {
           ...getThemeCssVars(theme),

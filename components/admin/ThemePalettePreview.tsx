@@ -3,8 +3,11 @@
 import { useEffect, useState } from "react";
 
 import { getThemeConfig } from "@/config/themes";
-import type { ThemeColors } from "@/config/themes";
 import { getTraditionOverride } from "@/config/cultures";
+import {
+  applyCulturalOverride,
+  ensureReadableTheme,
+} from "@/lib/culture-theme";
 import {
   SAMPLE_SIZE,
   derivePaletteFromPixels,
@@ -36,7 +39,16 @@ type Status =
   | { kind: "unreadable" }
   | { kind: "ready"; palette: DerivedPalette };
 
-const SWATCH_LABELS: { key: keyof ThemeColors; label: string }[] = [
+/**
+ * Lima warna dasar yang ditampilkan sebagai pratinjau.
+ *
+ * `key` dicetak eksplisit sebagai `ColorKey`, bukan `keyof ThemeColors`:
+ * `ThemeColors` kini punya `canvas` (token turunan, objek bukan string) dan
+ * memetakannya di sini akan membuat TypeScript menebak tipe yang salah.
+ */
+type ColorKey = "primary" | "secondary" | "background" | "text" | "accent";
+
+const SWATCH_LABELS: { key: ColorKey; label: string }[] = [
   { key: "primary", label: "Judul" },
   { key: "secondary", label: "Panel" },
   { key: "accent", label: "Ornamen" },
@@ -157,15 +169,27 @@ export default function ThemePalettePreview({
     );
   }
 
-  const base = getThemeConfig(themeId).colors;
-  const fromImage = resolvePaletteColors(base, status.palette);
+  // Pipeline-nya DICERMINI PERSIS dari `resolveTheme()` di `app/[slug]/page.tsx`:
+  // gambar acuan, lalu override adat, lalu koreksi kontras terakhir.
+  //
+  // Fungsi yang sama dipanggil, bukan logikanya yang disalin. Kalau pratinjau
+  // memakai jalur sendiri, begitu salah satu langkah berubah admin langsung
+  // melihat warna yang berbeda dari yang benar-benar dirender tamu -- dan
+  // pratinjau yang menyimpang lebih merusak daripada tidak ada pratinjau.
+  const finalColors = ensureReadableTheme(
+    applyCulturalOverride(
+      {
+        ...getThemeConfig(themeId),
+        colors: resolvePaletteColors(
+          getThemeConfig(themeId).colors,
+          status.palette
+        ),
+      },
+      { tradition, region: "" }
+    )
+  ).colors;
 
-  // Adat menang atas gambar — urutan yang sama dengan `app/[slug]/page.tsx`.
-  // Pratinjau harus menunjukkan hasil AKHIR, bukan hasil setengah jalan.
   const override = getTraditionOverride(tradition).colors;
-  const finalColors: ThemeColors = override
-    ? { ...fromImage, ...override }
-    : fromImage;
 
   const overridden = override
     ? SWATCH_LABELS.filter(({ key }) => key in override).map(
@@ -191,8 +215,10 @@ export default function ThemePalettePreview({
       </div>
 
       <p className="text-xs text-zinc-500">
-        Latar dan teks selalu mengikuti tema dasar agar isi undangan pasti
-        terbaca; gambar menentukan warna judul, panel, dan ornamen.
+        Gambar menentukan seluruh kanvas undangan: gambar gelap menghasilkan
+        latar gelap dan teks terang, gambar terang sebaliknya. Judul, panel,
+        dan ornamen mengikuti warna yang terbaca di gambar, dengan kontrasnya
+        dijamin aman.
       </p>
 
       {overridden.length > 0 ? (
