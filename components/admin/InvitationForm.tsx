@@ -9,7 +9,12 @@ import {
   PhotoUploadMulti,
 } from "@/components/admin/PhotoUpload";
 import ThemePalettePreview from "@/components/admin/ThemePalettePreview";
+import { MotifPicker } from "@/components/admin/MotifPicker";
 import { EVENT_OPTIONS } from "@/config/events";
+import { isMotifId } from "@/config/motifs";
+import type { MotifId } from "@/config/motifs";
+import { CUSTOM_COLOR_FIELDS, parseCustomColors } from "@/lib/palette";
+import type { CustomColorOverride } from "@/lib/palette";
 import {
   TIERS,
   getAllThemes,
@@ -227,6 +232,39 @@ export default function InvitationForm({ initial }: InvitationFormProps) {
       ? initial.theme_config.backgroundUrl
       : ""
   );
+
+  /**
+   * Motif yang dipilih admin. String kosong berarti "biarkan tema yang
+   * menentukan" — nilainya tetap terkirim sebagai `""` supaya Server Action
+   * bisa membedakannya dari "admin benar-benar memilih motif bawaan tema itu".
+   */
+  const [motif, setMotif] = useState<MotifId | "">(() => {
+    const saved = initial?.theme_config?.motif;
+    return isMotifId(saved) ? saved : "";
+  });
+
+  /**
+   * Motif bawaan tema yang sedang dipilih, untuk tombol "Ikuti tema".
+   *
+   * Dihitung ulang setiap render, bukan disimpan di state: kalau admin berganti
+   * tema, tombol ini harus langsung menawarkan motif tema yang baru. Nilai
+   * lama yang disimpan di state akan membuat tombol proposes motif yang sudah
+   * tidak berlaku.
+   */
+  const themeDefaultMotif =
+    getAllThemes().find((t) => t.id === themeId)?.defaultMotif ?? "kawung";
+
+  /**
+   * Warna manual yang menimpa tema. Object kosong berarti "semua dari tema".
+   * Dikendalikan lewat input native `type="color"` supaya admin tidak perlu
+   * mengetik hex, dan hex tetap bisa diketik manual untuk nilai yang tidak ada
+   * di roda warna.
+   */
+  const [customColors, setCustomColors] = useState<CustomColorOverride>(() => {
+    const saved = initial?.theme_config?.customColors;
+    const parsed = parseCustomColors(saved);
+    return parsed ?? {};
+  });
 
   const availableThemes = THEMES.filter((theme) =>
     isTierAllowed(tier, theme.tierRequirement)
@@ -746,6 +784,7 @@ export default function InvitationForm({ initial }: InvitationFormProps) {
             imageUrl={backgroundUrl}
             themeId={themeId}
             tradition={tradition}
+            customColors={customColors}
           />
         </div>
 
@@ -791,6 +830,90 @@ export default function InvitationForm({ initial }: InvitationFormProps) {
             menjadi fondasi tipografi dan elemen lainnya.
           </p>
         ) : null}
+      </Group>
+
+      <Group
+        title="Motif Ornamen"
+        hint="pilih imajinasi yang akan dipakai di seluruh halaman — semua motif terbuka untuk semua paket"
+      >
+        <MotifPicker
+          name="motif"
+          value={motif}
+          defaultMotif={themeDefaultMotif}
+          onChange={setMotif}
+        />
+
+        <p className="text-xs text-zinc-500">
+          Motif dipakai di tiga tempat sekaligus: pola latar, ornamen pembatas
+          antar bagian, dan titik tengah tiap sudut bingkai. Kalau dibiarkan
+          kosong, motif bawaan tema yang menentukan —{" "}
+          <strong>{themeDefaultMotif}</strong> untuk tema saat ini.
+        </p>
+      </Group>
+
+      <Group
+        title="Warna Manual"
+        hint="opsional — isi hanya warna yang mau diganti; sisanya tetap mengikuti tema, adat, dan gambar acuan"
+      >
+        <div className="grid gap-3 sm:grid-cols-2">
+          {CUSTOM_COLOR_FIELDS.map(({ key, label, hint }) => (
+            <label key={key} className="flex flex-col gap-1.5">
+              <span className="text-sm font-medium">{label}</span>
+              <div className="flex items-center gap-2">
+                <input
+                  type="color"
+                  aria-label={label}
+                  value={
+                    customColors[key] ??
+                    getAllThemes()
+                      .find((t) => t.id === themeId)
+                      ?.colors[key] ??
+                    "#000000"
+                  }
+                  onChange={(e) =>
+                    setCustomColors((prev) => ({
+                      ...prev,
+                      [key]: e.target.value,
+                    }))
+                  }
+                  className="h-9 w-12 cursor-pointer rounded border border-zinc-300 bg-transparent dark:border-zinc-700"
+                />
+                <input
+                  type="text"
+                  name={`color_${key}`}
+                  value={customColors[key] ?? ""}
+                  placeholder="dari tema"
+                  onChange={(e) => {
+                    const next = e.target.value.trim();
+                    setCustomColors((prev) => {
+                      const copy = { ...prev };
+                      if (next) copy[key] = next;
+                      else delete copy[key];
+                      return copy;
+                    });
+                  }}
+                  className={`${fieldClass} font-mono`}
+                />
+              </div>
+              <span className="text-xs text-zinc-500">{hint}</span>
+            </label>
+          ))}
+        </div>
+
+        <button
+          type="button"
+          onClick={() => setCustomColors({})}
+          disabled={Object.keys(customColors).length === 0}
+          className="self-start rounded-lg border border-zinc-300 px-3 py-1.5 text-xs font-medium transition hover:border-zinc-500 disabled:cursor-not-allowed disabled:opacity-40 dark:border-zinc-700"
+        >
+          Kembalikan semua ke tema
+        </button>
+
+        <p className="text-xs text-zinc-500">
+          Teks dan latar tetap dijamin terbaca oleh sistem: kalau pilihan membuat
+          kontrasnya di bawah ambang aman, terang warnanya otomatis digeser —
+          rona pilihanmu tetap dipertahankan.
+        </p>
       </Group>
 
       <Group

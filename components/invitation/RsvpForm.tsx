@@ -3,8 +3,7 @@
 import { useActionState } from "react";
 
 import { CornerFrame, ThemedHeading, getDecorProfile } from "@/components/invitation/decor";
-import type { DecorLevel } from "@/components/invitation/decor";
-import type { FrameStyle } from "@/config/themes";
+import type { Design } from "@/components/invitation/decor";
 import { submitRsvp } from "@/lib/actions";
 import { RSVP_INITIAL_STATE } from "@/lib/form-state";
 
@@ -31,8 +30,7 @@ interface RsvpFormProps {
    * dengan daftar undangan di dashboard jauh lebih sering tepat.
    */
   defaultName?: string;
-  frameStyle: FrameStyle;
-  level: DecorLevel;
+  design: Design;
 }
 
 /**
@@ -43,8 +41,7 @@ export default function RsvpForm({
   slug,
   enabled,
   defaultName,
-  frameStyle,
-  level,
+  design,
 }: RsvpFormProps) {
   const [state, formAction, pending] = useActionState(
     submitRsvp,
@@ -52,7 +49,7 @@ export default function RsvpForm({
   );
 
   // Kaca tebal + elevasi hanya untuk paket yang memang menjanjikannya.
-  const glassClass = getDecorProfile(level).strongGlass
+  const glassClass = getDecorProfile(design.level).strongGlass
     ? "inv-glass inv-glass-strong"
     : "inv-glass";
 
@@ -82,11 +79,10 @@ export default function RsvpForm({
         className={`${glassClass} inv-sheen relative rounded-[2rem] px-7 py-12 text-center`}
       >
         <CornerFrame
-          frameStyle={frameStyle}
-          level={level}
+          design={design}
           size="h-10 w-10 sm:h-12 sm:w-12"
         />
-        <ThemedHeading as="h3" level={level} className="relative text-2xl">
+        <ThemedHeading as="h3" level={design.level} className="relative text-2xl">
           Terima kasih
         </ThemedHeading>
         <p className="relative mt-3 text-sm leading-relaxed opacity-80">
@@ -102,8 +98,7 @@ export default function RsvpForm({
       className={`${glassClass} inv-sheen relative flex flex-col gap-5 rounded-[2rem] px-6 py-9 sm:px-9 sm:py-11`}
     >
       <CornerFrame
-        frameStyle={frameStyle}
-        level={level}
+        design={design}
         size="h-10 w-10 sm:h-12 sm:w-12"
       />
 

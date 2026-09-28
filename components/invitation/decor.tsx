@@ -1,7 +1,8 @@
-import type { ReactNode } from "react";
+import type { CSSProperties, ReactNode } from "react";
 
 import type { FrameStyle, TierType } from "@/config/themes";
-import { BatikPattern, getBatikVariant } from "@/components/invitation/Batik";
+import type { MotifId } from "@/config/motifs";
+import { MotifCrest, MotifPattern, getPatternStep } from "@/components/invitation/Ornaments";
 
 /**
  * Ornamen & lapisan dekorasi undangan.
@@ -20,6 +21,28 @@ import { BatikPattern, getBatikVariant } from "@/components/invitation/Batik";
 // ============================================
 
 export type DecorLevel = "simple" | "rich" | "lavish";
+
+/**
+ * Seluruh keputusan visual yang dibutuhkan oleh setiap komponen undangan, dalam
+ * satu objek.
+ *
+ * KENAPA SATU OBJEK, BUKAN TIGA PROP TERPISAH
+ *
+ * Ketiganya (`frameStyle`, `level`, `motif`) selalu diturunkan dari undangan yang
+ * sama dan selalu bergerak bersama. Semula hanya dua yang ada dan sudah harus
+ * di-drill ke sebelas komponen; menambah `motif` berarti satu prop baru di
+ * setiap signature dan di setiap call site. Dengan satu objek, field berikutnya
+ * cukup ditambah di satu tempat, dan yang terlupa akan langsung ketahuan oleh
+ * TypeScript — bukan diam-diam hilang di satu komponen.
+ */
+export interface Design {
+  /** Bentuk bingkai & pembatas: arch, floral, atau minimalist. */
+  frameStyle: FrameStyle;
+  /** Seberapa banyak ornamen yang dipasang; ditentukan paket. */
+  level: DecorLevel;
+  /** Motif ornamen yang dipakai: pola latar, crest, dan sudut bingkai. */
+  motif: MotifId;
+}
 
 export interface DecorProfile {
   /** Bingkai sudut SVG di kartu & bagian utama */
@@ -76,73 +99,24 @@ export function getDecorProfile(level: DecorLevel): DecorProfile {
 }
 
 // ============================================
-// Motif dasar per gaya bingkai
+// Motif pembatas
 // ============================================
 
-/** Motif tengah pembatas: bunga (floral), gapura (arch), atau wajik. */
-function Motif({ frameStyle, size }: { frameStyle: FrameStyle; size: number }) {
-  if (frameStyle === "floral") {
-    return (
-      <svg
-        width={size}
-        height={size}
-        viewBox="0 0 32 32"
-        aria-hidden="true"
-        className="shrink-0"
-      >
-        <g fill="currentColor">
-          <ellipse cx="16" cy="9" rx="3.2" ry="6" opacity="0.85" />
-          <ellipse cx="23" cy="16" rx="6" ry="3.2" opacity="0.85" />
-          <ellipse cx="16" cy="23" rx="3.2" ry="6" opacity="0.85" />
-          <ellipse cx="9" cy="16" rx="6" ry="3.2" opacity="0.85" />
-          <circle cx="16" cy="16" r="2.6" />
-        </g>
-      </svg>
-    );
-  }
-
-  if (frameStyle === "arch") {
-    return (
-      <svg
-        width={size * 0.8}
-        height={size}
-        viewBox="0 0 26 32"
-        aria-hidden="true"
-        className="shrink-0"
-      >
-        <path
-          d="M13 3c5.5 0 10 4.5 10 10v16H3V13C3 7.5 7.5 3 13 3z"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="1.6"
-        />
-        <path
-          d="M13 9c2.2 0 4 1.8 4 4v9h-8v-9c0-2.2 1.8-4 4-4z"
-          fill="currentColor"
-          opacity="0.28"
-        />
-      </svg>
-    );
-  }
-
-  return (
-    <svg
-      width={size * 0.72}
-      height={size * 0.72}
-      viewBox="0 0 24 24"
-      aria-hidden="true"
-      className="shrink-0"
-    >
-      <path d="M12 0l12 12-12 12L0 12z" fill="currentColor" opacity="0.9" />
-      <path
-        d="M12 5l7 7-7 7-7-7z"
-        fill="none"
-        stroke="var(--theme-background)"
-        strokeWidth="1.1"
-        opacity="0.7"
-      />
-    </svg>
-  );
+/**
+ * Ornamen tengah pembatas antar bagian.
+ *
+ * Dulu komponen ini menggambar bentuk berbeda tergantung `frameStyle` (bunga
+ * untuk floral, gapura untuk arch, wajik untuk minimalist). Sekarang bentuknya
+ * ditentukan `motif` — itulah gunanya katalog motif: pembatas yang muncul di
+ * tengah setiap bagian ikut berubah mengikuti imajinasi yang dipilih, bukan lagi
+ * ikut bentuk bingkai yang tidak ada hubungannya.
+ *
+ * `frameStyle` tidak dihapus dari pemanggilnya karena `Section` dan `CoverGate`
+ * tetap membutuhkannya untuk bingkai sudut; motif pembatas sendiri sudah tidak
+ * memakainya.
+ */
+function Motif({ motif, size }: { motif: MotifId; size: number }) {
+  return <MotifCrest motif={motif} width={size} />;
 }
 
 /** Percikan kelopak kecil di kedua sisi motif (khusus VIP). */
@@ -169,16 +143,19 @@ function PetalSpray({ flip = false }: { flip?: boolean }) {
 // ============================================
 
 interface DividerProps {
-  frameStyle: FrameStyle;
-  level: DecorLevel;
+  design: Design;
   className?: string;
 }
 
 /**
  * Pembatas dekoratif antar bagian.
+ *
  * Semakin tinggi paket, semakin banyak elemen yang menyertai motif tengahnya.
+ * Ornamen tengahnya sendiri mengikuti `design.motif` — jadi seluruh pembatas di
+ * undangan langsung berubah begitu admin mengganti imajinasi.
  */
-export function Divider({ frameStyle, level, className = "" }: DividerProps) {
+export function Divider({ design, className = "" }: DividerProps) {
+  const { level, motif } = design;
   const dot = (
     <span
       className="h-1 w-1 shrink-0 rounded-full bg-current"
@@ -195,7 +172,7 @@ export function Divider({ frameStyle, level, className = "" }: DividerProps) {
       {level !== "simple" ? dot : null}
       <span className="inv-rule w-10 sm:w-20" />
       {level === "lavish" ? <PetalSpray flip /> : null}
-      <Motif frameStyle={frameStyle} size={level === "simple" ? 20 : 26} />
+      <Motif motif={motif} size={level === "simple" ? 20 : 26} />
       {level === "lavish" ? <PetalSpray /> : null}
       <span className="inv-rule inv-rule--flip w-10 sm:w-20" />
       {level !== "simple" ? dot : null}
@@ -315,8 +292,7 @@ function CornerMark({
 }
 
 interface CornerFrameProps {
-  frameStyle: FrameStyle;
-  level: DecorLevel;
+  design: Design;
   /** Ukuran sudut dalam kelas Tailwind, mis. "h-12 w-12 sm:h-16 sm:w-16" */
   size?: string;
 }
@@ -326,16 +302,18 @@ interface CornerFrameProps {
  * Tidak dirender sama sekali pada paket Silver.
  */
 export function CornerFrame({
-  frameStyle,
-  level,
+  design,
   size = "h-12 w-12 sm:h-16 sm:w-16",
 }: CornerFrameProps) {
-  const profile = DECOR_PROFILES[level];
+  const profile = DECOR_PROFILES[design.level];
 
   if (!profile.corners) return null;
 
   const corner = (
-    <CornerMark frameStyle={frameStyle} doubleFrame={profile.doubleFrame} />
+    <CornerMark
+      frameStyle={design.frameStyle}
+      doubleFrame={profile.doubleFrame}
+    />
   );
 
   const shared = `pointer-events-none absolute ${size}`;
@@ -375,13 +353,15 @@ export function CornerFrame({
 /**
  * Pola motif berulang untuk latar (Premium & VIP).
  *
- * Sekarang memakai motif batik sungguhan dari `Batik.tsx` (kawung / parang /
- * ceplok) yang dipilih mengikuti `frameStyle` tema, bukan bentuk geometris
- * generik. Warnanya tetap `currentColor` supaya tidak ada warna yang
- * di-hardcode di sini.
+ * Motifnya datang dari katalog `Ornaments.tsx`, jadi latar ini bisa bermotif
+ * wayang, merak, atau damask — bukan cuma batik. Semula motif batik dipilih
+ * dari `frameStyle`, jadi semua tema hanya punya tiga varian batik yang
+ * menampilkan; sekarang motife bebas.
+ *
+ * Warnanya tetap `currentColor` supaya tidak ada warna yang di-hardcode di sini.
  */
-function BackdropPattern({ frameStyle }: { frameStyle: FrameStyle }) {
-  return <BatikPattern variant={getBatikVariant(frameStyle)} />;
+function BackdropPattern({ motif }: { motif: MotifId }) {
+  return <MotifPattern motif={motif} />;
 }
 
 /**
@@ -391,12 +371,10 @@ function BackdropPattern({ frameStyle }: { frameStyle: FrameStyle }) {
  * tidak ikut memanjang (dan meregang) saat halaman digulir.
  */
 export function Backdrop({
-  frameStyle,
-  level,
+  design,
   backgroundUrl,
 }: {
-  frameStyle: FrameStyle;
-  level: DecorLevel;
+  design: Design;
   /**
    * Gambar acuan tema. Bila ada, dipasang sebagai TEKSTUR yang sangat samar di
    * belakang isi undangan — bukan sebagai gambar yang dilihat. Kepekatannya
@@ -405,6 +383,7 @@ export function Backdrop({
    */
   backgroundUrl?: string | null;
 }) {
+  const { level, motif } = design;
   const profile = DECOR_PROFILES[level];
 
   return (
@@ -445,10 +424,15 @@ export function Backdrop({
 
       {profile.pattern ? (
         <div
-          className="absolute inset-0 inv-batik-drift"
-          style={{ opacity: profile.patternOpacity }}
+          className="absolute inset-0 inv-motif-drift"
+          style={{
+            opacity: profile.patternOpacity,
+            // Jarak geser animasi disamakan dengan ukuran ubin motif ini,
+            // supaya pola kembali ke posisi semula tanpa terlihat melompat.
+            "--inv-drift-step": `${getPatternStep(motif)}px`,
+          } as CSSProperties}
         >
-          <BackdropPattern frameStyle={frameStyle} />
+          <BackdropPattern motif={motif} />
         </div>
       ) : null}
     </div>

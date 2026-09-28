@@ -5,8 +5,7 @@ import {
   ThemedHeading,
   getDecorProfile,
 } from "@/components/invitation/decor";
-import type { DecorLevel } from "@/components/invitation/decor";
-import type { FrameStyle } from "@/config/themes";
+import type { Design } from "@/components/invitation/decor";
 import { formatEventDate, formatEventTime } from "@/lib/date";
 import { getMapsEmbedUrl, getMapsLink } from "@/lib/maps";
 import type { WeddingEvent } from "@/types/invitation";
@@ -91,8 +90,7 @@ function InfoTile({
 
 interface EventDetailsProps {
   events: WeddingEvent[];
-  frameStyle: FrameStyle;
-  level: DecorLevel;
+  design: Design;
 }
 
 /**
@@ -101,8 +99,7 @@ interface EventDetailsProps {
  */
 export default function EventDetails({
   events,
-  frameStyle,
-  level,
+  design,
 }: EventDetailsProps) {
   if (events.length === 0) {
     return (
@@ -114,7 +111,7 @@ export default function EventDetails({
     );
   }
 
-  const profile = getDecorProfile(level);
+  const profile = getDecorProfile(design.level);
 
   return (
     <div className="flex flex-col gap-6">
@@ -126,14 +123,13 @@ export default function EventDetails({
           }`}
         >
           <CornerFrame
-            frameStyle={frameStyle}
-            level={level}
+            design={design}
             size="h-10 w-10 sm:h-12 sm:w-12"
           />
 
           <ThemedHeading
             as="h3"
-            level={level}
+            level={design.level}
             className="relative text-2xl sm:text-3xl"
           >
             {event.label}

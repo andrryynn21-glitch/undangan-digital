@@ -275,23 +275,31 @@ html {
    baca daripada mempercantik.
    -------------------------------------------------------------------------- */
 
-@keyframes inv-batik-drift {
+@keyframes inv-motif-drift {
   from {
     transform: translate3d(0, 0, 0);
   }
   to {
-    transform: translate3d(-40px, -40px, 0);
+    /* Geser tepat sebesar satu ubin pola (lihat `getPatternStep`). Kalau
+       angkanya tidak sama dengan ukuran ubin, motif akan tampak melompat
+       tepat di detik terakhir saat animasi mengulang — dan itu justru terlihat
+       paling jelas pada pola rapat seperti batik. */
+    transform: translate3d(
+      calc(var(--inv-drift-step, 40px) * -1),
+      calc(var(--inv-drift-step, 40px) * -1),
+      0
+    );
   }
 }
 
 /* Geser sebesar satu ubin pola, jadi motif tidak pernah tampak melompat. */
-.inv-batik-drift {
-  animation: inv-batik-drift 48s linear infinite;
+.inv-motif-drift {
+  animation: inv-motif-drift 48s linear infinite;
   will-change: transform;
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .inv-batik-drift {
+  .inv-motif-drift {
     animation: none;
   }
 }

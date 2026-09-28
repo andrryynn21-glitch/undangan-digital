@@ -13,5 +13,6 @@
     "headingFont": "var(--font-playfair-display), Georgia, serif",
     "bodyFont": "var(--font-inter), system-ui, sans-serif"
   },
-  "frameStyle": "minimalist"
+  "frameStyle": "minimalist",
+  "defaultMotif": "kawung"
 }

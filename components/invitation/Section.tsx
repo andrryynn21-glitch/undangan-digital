@@ -1,13 +1,12 @@
 import type { ReactNode } from "react";
 
-import type { FrameStyle } from "@/config/themes";
 import {
   CornerFrame,
   Divider,
   ThemedHeading,
   getDecorProfile,
 } from "@/components/invitation/decor";
-import type { DecorLevel } from "@/components/invitation/decor";
+import type { Design } from "@/components/invitation/decor";
 import Reveal from "@/components/invitation/Reveal";
 
 interface SectionProps {
@@ -15,9 +14,7 @@ interface SectionProps {
   /** Teks kecil di atas judul, misal "Save The Date" */
   eyebrow?: string;
   subtitle?: string;
-  frameStyle: FrameStyle;
-  /** Tingkat dekorasi dari paket undangan (`getDecorLevel(tier)`) */
-  level: DecorLevel;
+  design: Design;
   children: ReactNode;
   id?: string;
   /** Lebar maksimum isi; dilonggarkan untuk galeri foto */
@@ -38,13 +35,12 @@ export function Section({
   title,
   eyebrow,
   subtitle,
-  frameStyle,
-  level,
+  design,
   children,
   id,
   width = "narrow",
 }: SectionProps) {
-  const profile = getDecorProfile(level);
+  const profile = getDecorProfile(design.level);
 
   return (
     <section
@@ -58,8 +54,7 @@ export function Section({
         }`}
       >
         <CornerFrame
-          frameStyle={frameStyle}
-          level={level}
+          design={design}
           size="h-14 w-14 sm:h-20 sm:w-20"
         />
 
@@ -75,7 +70,7 @@ export function Section({
               ) : null}
 
               <ThemedHeading
-                level={level}
+                level={design.level}
                 className="text-3xl leading-tight sm:text-[2.6rem]"
               >
                 {title}
@@ -87,7 +82,7 @@ export function Section({
                 </p>
               ) : null}
 
-              <Divider frameStyle={frameStyle} level={level} className="mt-1" />
+              <Divider design={design} className="mt-1" />
             </header>
           ) : null}
 

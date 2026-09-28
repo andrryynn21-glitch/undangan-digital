@@ -14,9 +14,9 @@
  * perubahan sama sekali.
  */
 
-import {
-  getTraditionOverride,
-} from "@/config/cultures";
+import { getTraditionOverride } from "@/config/cultures";
+import { isMotifId } from "@/config/motifs";
+import type { MotifId } from "@/config/motifs";
 import type { CulturalData } from "@/config/cultures";
 import type { ThemeCanvasTokens, ThemeColors, ThemeConfig } from "@/config/themes";
 import {
@@ -30,6 +30,7 @@ import {
   rgbToHex,
   rgbToHsl,
 } from "@/lib/palette";
+import type { CustomColorOverride } from "@/lib/palette";
 import type { DerivedPalette } from "@/lib/palette";
 
 /**
@@ -49,6 +50,24 @@ export function parseCulturalData(
     tradition,
     region: typeof region === "string" ? region : "",
   };
+}
+
+/**
+ * Motif yang dipilih admin untuk sebuah undangan, dibaca dari `theme_config`.
+ *
+ * Sengaja mengembalikan `MotifId | null`, bukan `MotifId`: `null` berarti
+ * "admin belum memilih" dan pemanggil boleh jatuh ke motif bawaan tema.
+ * Kalau fungsi ini langsung mengembalikan nilai akhirnya, informasi apakah admin
+ * pernah memilih sesuatu hilang, dan halaman tidak bisa membedakan "pakai
+ * bawaan" dari "admin memang memilih itu".
+ *
+ * Nilai yang bukan motif yang dikenal dianggap sama dengan belum memilih.
+ * Motif bisa ditambah atau dihapus dari katalog kapan saja, jadi
+ * `theme_config` yang sudah tersimpan memang sewaktu-waktu bisa berisi id
+ * yang sudah tidak ada.
+ */
+export function parseMotifSelection(raw: Record<string, unknown>): MotifId | null {
+  return isMotifId(raw.motif) ? raw.motif : null;
 }
 
 /**
@@ -161,6 +180,36 @@ export function applyCulturalOverride(
       : colors,
     fonts: override.fonts ? { ...base.fonts, ...override.fonts } : base.fonts,
     frameStyle: override.frameStyle ?? base.frameStyle,
+  };
+}
+
+/**
+ * Terapkan override warna manual yang dipilih admin.
+ *
+ * Dijalankan SETELAH override gambar dan override budaya, bukan sebelumnya.
+ * Urutannya penting: admin yang memilih "Jade" sedang meminta dominasi hijau —
+ * membiarkan warna gambar atau warna budaya menimpanya kembali akan membatalkan
+ * pilihannya tanpa disadari.
+ *
+ * TOKEN KANVAS WAJIB DIHITUNG ULANG, dengan alasan yang sama persis seperti pada
+ * `applyCulturalOverride`: admin boleh menimpa `background`, dan kalau
+ * `canvas.mode` tidak ikut berubah, aturan CSS untuk latar gelap dipasang di
+ * atas latar yang sebenarnya terang. Kartu jadi gelap di atas krem.
+ */
+export function applyCustomColorOverride(
+  base: ThemeConfig,
+  custom: CustomColorOverride | null
+): ThemeConfig {
+  if (!custom) return base;
+
+  const colors: ThemeColors = { ...base.colors, ...custom };
+  const backgroundOverridden = custom.background !== undefined;
+
+  return {
+    ...base,
+    colors: backgroundOverridden
+      ? { ...colors, canvas: canvasFor(colors) }
+      : colors,
   };
 }
 

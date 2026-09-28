@@ -1,8 +1,7 @@
 import Image from "next/image";
 
 import { CornerFrame, Monogram } from "@/components/invitation/decor";
-import type { DecorLevel } from "@/components/invitation/decor";
-import type { FrameStyle } from "@/config/themes";
+import type { Design } from "@/components/invitation/decor";
 import type { Person } from "@/types/invitation";
 
 function InstagramIcon() {
@@ -71,17 +70,15 @@ function Avatar({
 function PersonCard({
   person,
   fallbackInitial,
-  frameStyle,
-  level,
+  design,
 }: {
   person: Person;
   fallbackInitial: string;
-  frameStyle: FrameStyle;
-  level: DecorLevel;
+  design: Design;
 }) {
   return (
     <article className="inv-glass inv-sheen relative flex w-full max-w-[16rem] flex-col items-center gap-4 rounded-[1.9rem] px-6 py-9 text-center">
-      <CornerFrame frameStyle={frameStyle} level={level} size="h-9 w-9" />
+      <CornerFrame design={design} size="h-9 w-9" />
 
       <span className="relative">
         <Avatar person={person} fallbackInitial={fallbackInitial} />
@@ -121,24 +118,21 @@ function PersonCard({
 interface CoupleProfileProps {
   groom: Person;
   bride: Person;
-  frameStyle: FrameStyle;
-  level: DecorLevel;
+  design: Design;
 }
 
 /** Kartu profil kedua mempelai dengan foto avatar. */
 export default function CoupleProfile({
   groom,
   bride,
-  frameStyle,
-  level,
+  design,
 }: CoupleProfileProps) {
   return (
     <div className="flex flex-col items-center gap-6 sm:flex-row sm:items-stretch sm:justify-center sm:gap-5">
       <PersonCard
         person={groom}
         fallbackInitial={groom.nickName.charAt(0)}
-        frameStyle={frameStyle}
-        level={level}
+        design={design}
       />
 
       <div className="flex items-center justify-center">
@@ -157,8 +151,7 @@ export default function CoupleProfile({
       <PersonCard
         person={bride}
         fallbackInitial={bride.nickName.charAt(0)}
-        frameStyle={frameStyle}
-        level={level}
+        design={design}
       />
     </div>
   );

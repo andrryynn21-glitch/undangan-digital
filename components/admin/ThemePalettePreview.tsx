@@ -6,6 +6,7 @@ import { getThemeConfig } from "@/config/themes";
 import { getTraditionOverride } from "@/config/cultures";
 import {
   applyCulturalOverride,
+  applyCustomColorOverride,
   ensureReadableTheme,
 } from "@/lib/culture-theme";
 import {
@@ -13,7 +14,7 @@ import {
   derivePaletteFromPixels,
   resolvePaletteColors,
 } from "@/lib/palette";
-import type { DerivedPalette } from "@/lib/palette";
+import type { CustomColorOverride, DerivedPalette } from "@/lib/palette";
 
 /**
  * Pratinjau warna tema hasil pembacaan gambar acuan.
@@ -60,6 +61,7 @@ export default function ThemePalettePreview({
   imageUrl,
   themeId,
   tradition,
+  customColors,
 }: {
   /** URL gambar acuan yang sudah terunggah; kosong berarti belum ada. */
   imageUrl: string;
@@ -67,6 +69,8 @@ export default function ThemePalettePreview({
   themeId: string;
   /** Adat yang sedang dipilih; menimpa warna gambar bila bukan "modern". */
   tradition: string;
+  /** Warna manual yang sedang diketik admin, agar pratinjau ikut berubah. */
+  customColors?: CustomColorOverride;
 }) {
   /**
    * Hasil pembacaan disimpan BESERTA URL asalnya, lalu status yang dipakai
@@ -147,7 +151,14 @@ export default function ThemePalettePreview({
     };
   }, [imageUrl]);
 
-  if (status.kind === "idle") return null;
+  // Tanpa gambar acuan TAPI tanpa warna manual, tidak ada yang perlu
+  // dipratinjau dan panelnya disembunyikan seperti sebelumnya. Begitu admin
+  // mulai mengetik warna, panel muncul lagi: justru saat itu paling perlu
+  // melihat akibatnya, karena warna manual adalah lapisan terakhir yang
+  // menimpa semua lapisan lain.
+  const hasCustom = Boolean(customColors && Object.keys(customColors).length);
+
+  if (status.kind === "idle" && !hasCustom) return null;
 
   const note = (text: string) => (
     <p className="rounded-lg bg-zinc-100 px-3 py-2 text-xs text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300">
@@ -170,22 +181,26 @@ export default function ThemePalettePreview({
   }
 
   // Pipeline-nya DICERMINI PERSIS dari `resolveTheme()` di `app/[slug]/page.tsx`:
-  // gambar acuan, lalu override adat, lalu koreksi kontras terakhir.
+  // gambar acuan, override adat, warna manual, lalu koreksi kontras terakhir.
   //
   // Fungsi yang sama dipanggil, bukan logikanya yang disalin. Kalau pratinjau
   // memakai jalur sendiri, begitu salah satu langkah berubah admin langsung
   // melihat warna yang berbeda dari yang benar-benar dirender tamu -- dan
   // pratinjau yang menyimpang lebih merusak daripada tidak ada pratinjau.
+  //
+  // `status.palette` hanya ada saat gambar terbaca; tanpa gambar, pipeline
+  // dijalankan tanpa langkah 1 dan hasilnya persis sama dengan yang akan
+  // dirender tamu.
+  const base = getThemeConfig(themeId);
+  const withImage =
+    status.kind === "ready"
+      ? { ...base, colors: resolvePaletteColors(base.colors, status.palette) }
+      : base;
+
   const finalColors = ensureReadableTheme(
-    applyCulturalOverride(
-      {
-        ...getThemeConfig(themeId),
-        colors: resolvePaletteColors(
-          getThemeConfig(themeId).colors,
-          status.palette
-        ),
-      },
-      { tradition, region: "" }
+    applyCustomColorOverride(
+      applyCulturalOverride(withImage, { tradition, region: "" }),
+      customColors ?? null
     )
   ).colors;
 
@@ -193,6 +208,12 @@ export default function ThemePalettePreview({
 
   const overridden = override
     ? SWATCH_LABELS.filter(({ key }) => key in override).map(
+        ({ label }) => label
+      )
+    : [];
+
+  const customOverridden = hasCustom
+    ? SWATCH_LABELS.filter(({ key }) => customColors?.[key]).map(
         ({ label }) => label
       )
     : [];
@@ -225,6 +246,13 @@ export default function ThemePalettePreview({
         <p className="rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:bg-amber-950 dark:text-amber-200">
           Adat yang dipilih menimpa warna dari gambar pada: {overridden.join(", ")}.
           Pilih adat <strong>Modern</strong> bila ingin warna gambar dipakai penuh.
+        </p>
+      ) : null}
+
+      {customOverridden.length > 0 ? (
+        <p className="rounded-lg bg-emerald-50 px-3 py-2 text-xs text-emerald-800 dark:bg-emerald-950 dark:text-emerald-200">
+          Warna manual menimpa hasil tema, adat, dan gambar pada:{" "}
+          {customOverridden.join(", ")}.
         </p>
       ) : null}
     </div>

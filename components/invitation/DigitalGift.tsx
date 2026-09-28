@@ -3,8 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 
 import { CornerFrame, getDecorProfile } from "@/components/invitation/decor";
-import type { DecorLevel } from "@/components/invitation/decor";
-import type { FrameStyle } from "@/config/themes";
+import type { Design } from "@/components/invitation/decor";
 import type { PaymentAccount } from "@/types/invitation";
 
 /**
@@ -98,8 +97,7 @@ function CheckIcon() {
 
 interface DigitalGiftProps {
   accounts: PaymentAccount[];
-  frameStyle: FrameStyle;
-  level: DecorLevel;
+  design: Design;
 }
 
 /**
@@ -111,15 +109,14 @@ interface DigitalGiftProps {
  */
 export default function DigitalGift({
   accounts,
-  frameStyle,
-  level,
+  design,
 }: DigitalGiftProps) {
   const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
   const [failedIndex, setFailedIndex] = useState<number | null>(null);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Kaca tebal + elevasi hanya untuk paket yang memang menjanjikannya.
-  const glassClass = getDecorProfile(level).strongGlass
+  const glassClass = getDecorProfile(design.level).strongGlass
     ? "inv-glass inv-glass-strong"
     : "inv-glass";
 
@@ -158,7 +155,7 @@ export default function DigitalGift({
             key={`${account.bank}-${account.number}-${index}`}
             className={`${glassClass} inv-sheen relative overflow-hidden rounded-[1.75rem] px-6 py-7 sm:px-8`}
           >
-            <CornerFrame frameStyle={frameStyle} level={level} size="h-9 w-9" />
+            <CornerFrame design={design} size="h-9 w-9" />
 
             {/* Pita cahaya diagonal, memberi kesan kartu logam */}
             <span

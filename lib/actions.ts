@@ -28,7 +28,9 @@ import {
 } from "@/lib/invitation";
 import { generateSlugFromNames } from "@/lib/slug";
 import { derivePalette } from "@/lib/palette-extract";
-import { parseDerivedPalette } from "@/lib/palette";
+import { parseDerivedPalette, parseCustomColors, CUSTOM_COLOR_FIELDS } from "@/lib/palette";
+import type { CustomColorOverride } from "@/lib/palette";
+import { isMotifId } from "@/config/motifs";
 import { deleteInvitationFiles } from "@/lib/storage-admin";
 import { getSupabase } from "@/lib/supabase";
 import type {
@@ -407,7 +409,9 @@ async function buildThemeConfig(
   tradition: string,
   region: string,
   backgroundUrl: string | undefined,
-  previous?: Record<string, unknown>
+  previous?: Record<string, unknown>,
+  motif?: string,
+  customColors?: CustomColorOverride | null
 ): Promise<Record<string, unknown>> {
   const unchanged =
     backgroundUrl !== undefined && previous?.backgroundUrl === backgroundUrl;
@@ -422,7 +426,38 @@ async function buildThemeConfig(
     ...(tradition ? { tradition, region } : {}),
     ...(backgroundUrl ? { backgroundUrl } : {}),
     ...(palette ? { palette } : {}),
+    // Motif hanya ditulis bila memang dipilih. Kalau tidak, field-nya dihilang
+    // supaya halaman ikut memakai motif bawaan tema — dan admin yang mengosongkan
+    // pilihannya benar-benar kembali ke bawaan, bukan tersangkut di nilai lama.
+    ...(motif ? { motif } : {}),
+    ...(customColors ? { customColors } : {}),
   };
+}
+
+/**
+ * Baca input warna manual dari form.
+ *
+ * Nama field mengikuti `CUSTOM_COLOR_FIELDS` dengan awalan `color_`, jadi
+ * `color_accent` milik `accent`. Yang dikembalikan HANYA field yang diisi admin:
+ * kotak kosong berarti "biarkan milik tema", dan itulah yang membuat admin bisa
+ * menimpa satu warna tanpa mengetik ulang kelimanya.
+ *
+ * Nilai yang tidak bisa dibaca DIABAIKAN, bukan ditolak. Warna custom adalah
+ * lapisan yang paling baru dan paling sering diubah; menolak penyimpanan
+ * karena satu kotak berisi `rgb(...)` jauh lebih merusak daripada menampiknya
+ * dan menyimpan sisa pilihan yang valid. Kontras tetap dijaga nanti oleh
+ * `ensureReadableColors()`, jadi warna unchecked ini tidak bisa membuat teks tak
+ * terbaca.
+ */
+function parseCustomColorFields(formData: FormData): CustomColorOverride | null {
+  const raw: Record<string, unknown> = {};
+
+  for (const { key } of CUSTOM_COLOR_FIELDS) {
+    const value = readString(formData, `color_${key}`);
+    if (value) raw[key] = value;
+  }
+
+  return parseCustomColors(raw);
 }
 
 /**
@@ -469,6 +504,8 @@ async function parseInvitationForm(
   const tradition = readString(formData, "tradition");
   const region = readString(formData, "region");
   const backgroundUrl = readString(formData, "backgroundUrl");
+  const motif = readString(formData, "motif");
+  const customColors = parseCustomColorFields(formData);
 
   if (!TIERS.includes(tier)) {
     return { error: "Paket tidak valid." };
@@ -479,6 +516,14 @@ async function parseInvitationForm(
   // Gerbang paket: tema Premium/VIP tidak boleh dipasang di undangan Silver.
   if (!canUseTheme(tier, themeId)) {
     return { error: `Tema "${themeId}" tidak tersedia untuk paket ${tier}.` };
+  }
+
+  // Motif yang tidak dikenal ditolak eksplisit, karena `motif` dikirim lewat
+  // select berisi pilihan tetap — tidak mungkin tidak sengaja kosong atau basi
+  // seperti pada input warna bebas. Menolak memberi tahu admin kalau formnya
+  // rusak, alih-alih diam-diam menyimpan nilai yang tidak berlaku.
+  if (motif && !isMotifId(motif)) {
+    return { error: "Motif ornamen tidak dikenal." };
   }
 
   if (groomName.length < 2 || brideName.length < 2) {
@@ -590,7 +635,9 @@ async function parseInvitationForm(
     tradition,
     region,
     background.url,
-    previousThemeConfig
+    previousThemeConfig,
+    motif,
+    customColors
   );
 
   return {

@@ -132,6 +132,67 @@ export interface DerivedPalette {
 }
 
 // ============================================
+// Override warna manual
+// ============================================
+
+/**
+ * Warna yang dipilih manual oleh admin, disimpan di `theme_config`.
+ *
+ * HANYA berisi field yang benar-benar diisi admin. Sifat "partial" adalah inti
+ * dari bentuknya: admin boleh menimpa `accent` saja tanpa menyentuh
+ * `background`, dan warna yang tidak disebut tetap milik tema. Kalau tipenya
+ * penuh, setiap form wajib mengirim kelima warna dan kita kembali ke "admin
+ * tidak boleh memilih sebagian" — persis batasan yang sedang dihapus.
+ */
+export type CustomColorOverride = Partial<
+  Pick<ThemeColors, "primary" | "secondary" | "background" | "text" | "accent">
+>;
+
+/**
+ * Field warna yang boleh ditimpa manual, dengan label untuk form admin.
+ *
+ * Dipakai bersama oleh form dan server action supaya keduanya tidak bisa
+ * berbeda pendapat tentang warna apa saja yang boleh diubah — kalau tidak,
+ * form bisa menampilkan input untuk `text` sementara server membuangnya.
+ */
+export const CUSTOM_COLOR_FIELDS = [
+  { key: "background", label: "Latar", hint: "W dasar halaman." },
+  { key: "primary", label: "Utama", hint: "Judul & tombol utama." },
+  { key: "secondary", label: "Pendukung", hint: "Kartu & panel." },
+  { key: "accent", label: "Aksen", hint: "Ornamen, garis, ikon." },
+  { key: "text", label: "Teks", hint: "Tulisan di atas latar." },
+] as const satisfies readonly { key: keyof CustomColorOverride; label: string; hint: string }[];
+
+/** Warna hex yang boleh dikirim admin: `#rgb` atau `#rrggbb`. */
+const HEX_INPUT = /^#(?:[0-9a-f]{3}|[0-9a-f]{6})$/i;
+
+/**
+ * Baca override warna dari `theme_config` dengan aman.
+ *
+ * Nilai yang bukan hex yang benar DIABAIKAN, bukan membuat halaman gagal. Ini
+ * lapisan yang sama dengan `parseDerivedPalette` dan `parseMotifSelection`:
+ * data JSONB bisa saja berasal dari versi aplikasi yang lebih lama, atau dari
+ * admin yang mengetik warna dengan format yang tidak kita dukung. Menampilkan
+ * undangan dengan warna tema yang benar selalu lebih baik daripada halaman
+ * putih kosong.
+ */
+export function parseCustomColors(value: unknown): CustomColorOverride | null {
+  if (typeof value !== "object" || value === null) return null;
+
+  const raw = value as Record<string, unknown>;
+  const out: CustomColorOverride = {};
+
+  for (const { key } of CUSTOM_COLOR_FIELDS) {
+    const color = raw[key];
+    if (typeof color === "string" && HEX_INPUT.test(color.trim())) {
+      out[key] = color.trim();
+    }
+  }
+
+  return Object.keys(out).length > 0 ? out : null;
+}
+
+// ============================================
 // Konversi warna
 // ============================================
 

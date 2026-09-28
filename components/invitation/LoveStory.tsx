@@ -1,13 +1,11 @@
 import { CornerFrame, ThemedHeading } from "@/components/invitation/decor";
-import type { DecorLevel } from "@/components/invitation/decor";
+import type { Design } from "@/components/invitation/decor";
 import Reveal from "@/components/invitation/Reveal";
-import type { FrameStyle } from "@/config/themes";
 import type { StoryItem } from "@/types/invitation";
 
 interface LoveStoryProps {
   items: StoryItem[];
-  frameStyle: FrameStyle;
-  level: DecorLevel;
+  design: Design;
 }
 
 /**
@@ -23,8 +21,7 @@ interface LoveStoryProps {
  */
 export default function LoveStory({
   items,
-  frameStyle,
-  level,
+  design,
 }: LoveStoryProps) {
   if (items.length === 0) return null;
 
@@ -58,7 +55,7 @@ export default function LoveStory({
 
           <Reveal delay={Math.min(index, 4) * 90}>
             <article className="inv-glass inv-sheen relative rounded-[1.6rem] px-6 py-6 sm:px-7">
-              <CornerFrame frameStyle={frameStyle} level={level} size="h-8 w-8" />
+              <CornerFrame design={design} size="h-8 w-8" />
 
               <div className="relative flex flex-col gap-2">
                 {item.date ? (
@@ -70,7 +67,7 @@ export default function LoveStory({
                   </p>
                 ) : null}
 
-                <ThemedHeading as="h3" level={level} className="text-xl sm:text-2xl">
+                <ThemedHeading as="h3" level={design.level} className="text-xl sm:text-2xl">
                   {item.title}
                 </ThemedHeading>
 

@@ -13,5 +13,6 @@
     "headingFont": "var(--font-cormorant-garamond), Georgia, serif",
     "bodyFont": "var(--font-plus-jakarta-sans), system-ui, sans-serif"
   },
-  "frameStyle": "floral"
+  "frameStyle": "floral",
+  "defaultMotif": "sakura"
 }

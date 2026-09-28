@@ -5,8 +5,7 @@ import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 
 import { CornerFrame } from "@/components/invitation/decor";
-import type { DecorLevel } from "@/components/invitation/decor";
-import type { FrameStyle } from "@/config/themes";
+import type { Design } from "@/components/invitation/decor";
 
 function ChevronIcon({ direction }: { direction: "left" | "right" }) {
   return (
@@ -75,8 +74,7 @@ function PauseIcon() {
 interface PhotoGalleryProps {
   /** URL foto dari `event_data.gallery_urls` */
   urls: string[];
-  frameStyle: FrameStyle;
-  level: DecorLevel;
+  design: Design;
 }
 
 /**
@@ -87,8 +85,7 @@ interface PhotoGalleryProps {
  */
 export default function PhotoGallery({
   urls,
-  frameStyle,
-  level,
+  design,
 }: PhotoGalleryProps) {
   const [activeIndex, setActiveIndex] = useState<number | null>(null);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
@@ -194,8 +191,7 @@ export default function PhotoGallery({
     <>
       <div className="relative">
         <CornerFrame
-          frameStyle={frameStyle}
-          level={level}
+          design={design}
           size="h-12 w-12 sm:h-16 sm:w-16"
         />
 

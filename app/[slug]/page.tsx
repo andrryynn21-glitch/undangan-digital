@@ -20,6 +20,8 @@ import {
   ThemedHeading,
   getDecorLevel,
 } from "@/components/invitation/decor";
+import type { Design } from "@/components/invitation/decor";
+import { resolveMotifId } from "@/config/motifs";
 import {
   getThemeConfig,
   getThemeCssVars,
@@ -29,11 +31,14 @@ import type { ThemeConfig } from "@/config/themes";
 import type { NavItem } from "@/components/invitation/NavDock";
 import {
   applyCulturalOverride,
+  applyCustomColorOverride,
   applyPaletteOverride,
   ensureReadableTheme,
   parseCulturalData,
+  parseMotifSelection,
   parseThemeImageData,
 } from "@/lib/culture-theme";
+import { parseCustomColors } from "@/lib/palette";
 import { WISH_DISPLAY_LIMIT } from "@/config/tiers";
 import { formatEventDate, getCalendarRange, getCountdownEvent } from "@/lib/date";
 import {
@@ -134,25 +139,36 @@ export async function generateMetadata({
 function resolveTheme(invitation: InvitationRow): ThemeConfig {
   const baseTheme = getThemeConfig(invitation.theme_id);
 
-  // Tiga lapis, dan URUTANNYA DISENGAJA:
+  // Empat lapis, dan URUTANNYA DISENGAJA:
   // 1. warna gambar acuan (gambar gelap → kanvas gelap),
   // 2. override adat (menang atas gambar karena alasan budaya),
-  // 3. koreksi kontras terakhir untuk SEMUA warna yang muncul di 1 & 2.
+  // 3. warna manual yang dipilih admin (menang atas semua, karena itu pilihan
+  //    paling eksplisit),
+  // 4. koreksi kontras terakhir untuk SEMUA warna yang muncul di 1-3.
   //
-  // Lapis 3 harus paling akhir: override adat menimpa `primary`/`accent`
-  // dengan warna budayanya sendiri, dan warna-warna itu belum pernah diuji
-  // kontrasnya. Tanpa lapis 3, tema dasar "Minimal Gold" bahkan keluar
-  // dengan emas di krem pada rasio 2,38:1 — heading nyaris tak terbaca.
+  // Lapis 3 duduk SETELAH 1 dan 2, bukan sebelumnya, supaya pilihan admin
+  // benar-benar yang terakhir. Sebaliknya, admin yang memilih "Jade" akan kaget
+  // melihat warna hijaunya ditimpa hijau muda budayanya.
   //
-  // Undangan lama yang `theme_config`-nya `{}` melewati 1 dan 2 tanpa
-  // perubahan, tapi tetap mendapat manfaat lapis 3.
+  // Lapis 4 harus paling akhir: override adat menimpa `primary`/`accent` dengan
+  // warna budayanya sendiri, dan warna-warna itu belum pernah diuji kontrasnya.
+  // Tanpa lapis 4, tema dasar "Minimal Gold" bahkan keluar dengan emas di krem
+  // pada rasio 2,38:1 — heading nyaris tak terbaca. Warna pilihan admin punya
+  // risiko yang persis sama: admin bebas mengetik apa saja, termasuk warna
+  // yang membuat teksnya hilang.
+  //
+  // Undangan lama yang `theme_config`-nya `{}` melewati 1-3 tanpa perubahan, tapi
+  // tetap mendapat manfaat lapis 4.
   return ensureReadableTheme(
-    applyCulturalOverride(
-      applyPaletteOverride(
-        baseTheme,
-        parseThemeImageData(invitation.theme_config).palette
+    applyCustomColorOverride(
+      applyCulturalOverride(
+        applyPaletteOverride(
+          baseTheme,
+          parseThemeImageData(invitation.theme_config).palette
+        ),
+        parseCulturalData(invitation.theme_config)
       ),
-      parseCulturalData(invitation.theme_config)
+      parseCustomColors(invitation.theme_config?.customColors)
     )
   );
 }
@@ -200,9 +216,31 @@ export default async function InvitationPage({
   const theme = resolveTheme(invitation);
   const themeImage = parseThemeImageData(invitation.theme_config);
 
-  // Banyaknya ornamen ditentukan paket, bentuk & warnanya ditentukan tema.
+  // Banyaknya ornamen ditentukan paket; bentuk, motif, dan warnanya oleh tema
+  // dan pilihan admin.
   const level = getDecorLevel(invitation.tier);
-  const frameStyle = theme.frameStyle;
+
+  /**
+   * Motif yang benar-benar dipakai untuk undangan ini.
+   *
+   * Urutannya: pilihan admin di form → motif bawaan tema → motif bawaan
+   * menurut bentuk bingkai. Baris lama yang `theme_config`-nya belum punya
+   * `motif` tetap dapat hasil yang masuk akal, dan tema yang `defaultMotif`-nya
+   * belum diisi tidak pernah membuat halaman kosong.
+   */
+  const motif = resolveMotifId(
+    parseMotifSelection(invitation.theme_config),
+    theme.defaultMotif
+  );
+
+  // Satu objek untuk semua komponen, supaya motif baru tidak perlu di-drill
+  // ke sebelas call site.
+  const design: Design = {
+    frameStyle: theme.frameStyle,
+    level,
+    motif,
+  };
+  const frameStyle = design.frameStyle;
 
   // Ucapan dicari lewat `invitation_id`, bukan slug. Batas jumlahnya dibagi
   // dengan tabel perbandingan di /paket agar keduanya tidak pernah beda angka.
@@ -290,8 +328,7 @@ export default async function InvitationPage({
     >
       {/* Latar berlapis: gradasi tema + pola motif + tekstur kertas */}
       <Backdrop
-        frameStyle={frameStyle}
-        level={level}
+        design={design}
         backgroundUrl={themeImage.backgroundUrl}
       />
 
@@ -307,11 +344,10 @@ export default async function InvitationPage({
         // Musik hanya untuk paket yang memang menjanjikannya.
         musicUrl={features.customMusic ? invitation.music_url : null}
         sections={navItems}
-        frameStyle={frameStyle}
-        level={level}
+        design={design}
       >
         {/* Pembuka */}
-        <Section id="pembuka" frameStyle={frameStyle} level={level}>
+        <Section id="pembuka" design={design}>
           <div className="flex flex-col items-center gap-7 text-center">
             <p className="text-[0.68rem] tracking-[0.35em] uppercase opacity-65">
               {INVITATION_TITLE}
@@ -332,7 +368,7 @@ export default async function InvitationPage({
               {bride.fullName}
             </ThemedHeading>
 
-            <Divider frameStyle={frameStyle} level={level} />
+            <Divider design={design} />
 
             {coverPhotoUrl ? (
               <span
@@ -383,8 +419,7 @@ export default async function InvitationPage({
         {/* Profil mempelai */}
         <Section
           id="mempelai"
-          frameStyle={frameStyle}
-          level={level}
+          design={design}
           eyebrow="Bismillahirrahmanirrahim"
           title="Kedua Mempelai"
           subtitle="Dengan memohon rahmat dan ridho Allah, kami bermaksud menyelenggarakan pernikahan putra-putri kami."
@@ -393,16 +428,14 @@ export default async function InvitationPage({
           <CoupleProfile
             groom={groom}
             bride={bride}
-            frameStyle={frameStyle}
-            level={level}
+            design={design}
           />
         </Section>
 
         {/* Hitung mundur */}
         {countdown ? (
           <Section
-            frameStyle={frameStyle}
-            level={level}
+            design={design}
             eyebrow="Save The Date"
             title="Menuju Hari Bahagia"
             subtitle={`Hitung mundur menuju ${countdown.event.label}`}
@@ -419,29 +452,26 @@ export default async function InvitationPage({
         {story.length > 0 ? (
           <Section
             id="kisah"
-            frameStyle={frameStyle}
-            level={level}
+            design={design}
             eyebrow="Our Story"
             title="Kisah Kami"
             subtitle="Perjalanan yang membawa kami sampai di hari ini."
           >
-            <LoveStory items={story} frameStyle={frameStyle} level={level} />
+            <LoveStory items={story} design={design} />
           </Section>
         ) : null}
 
         {/* Detail acara */}
         <Section
           id="acara"
-          frameStyle={frameStyle}
-          level={level}
+          design={design}
           eyebrow="Rangkaian Acara"
           title="Detail Acara"
           subtitle="Merupakan suatu kehormatan bagi kami apabila Bapak/Ibu berkenan hadir."
         >
           <EventDetails
             events={events}
-            frameStyle={frameStyle}
-            level={level}
+            design={design}
           />
         </Section>
 
@@ -449,8 +479,7 @@ export default async function InvitationPage({
         {galleryUrls.length > 0 ? (
           <Section
             id="galeri"
-            frameStyle={frameStyle}
-            level={level}
+            design={design}
             eyebrow="Our Moments"
             title="Galeri Kenangan"
             subtitle="Sekilas perjalanan kami. Ketuk foto untuk melihat lebih dekat."
@@ -458,8 +487,7 @@ export default async function InvitationPage({
           >
             <PhotoGallery
               urls={galleryUrls}
-              frameStyle={frameStyle}
-              level={level}
+              design={design}
             />
           </Section>
         ) : null}
@@ -467,8 +495,7 @@ export default async function InvitationPage({
         {/* Konfirmasi kehadiran */}
         <Section
           id="rsvp"
-          frameStyle={frameStyle}
-          level={level}
+          design={design}
           eyebrow="RSVP"
           title="Konfirmasi Kehadiran"
           subtitle="Mohon konfirmasi kehadiran Anda untuk membantu kami mempersiapkan acara."
@@ -477,8 +504,7 @@ export default async function InvitationPage({
             slug={slug}
             enabled={features.rsvpToDb}
             defaultName={guestName}
-            frameStyle={frameStyle}
-            level={level}
+            design={design}
           />
         </Section>
 
@@ -486,16 +512,14 @@ export default async function InvitationPage({
         {accounts.length > 0 ? (
           <Section
             id="hadiah"
-            frameStyle={frameStyle}
-            level={level}
+            design={design}
             eyebrow="Wedding Gift"
             title="Amplop Digital"
             subtitle="Tanpa mengurangi rasa hormat, bagi Bapak/Ibu yang ingin mengirimkan tanda kasih, dapat melalui rekening berikut."
           >
             <DigitalGift
               accounts={accounts}
-              frameStyle={frameStyle}
-              level={level}
+              design={design}
             />
           </Section>
         ) : null}
@@ -503,8 +527,7 @@ export default async function InvitationPage({
         {/* Buku ucapan */}
         <Section
           id="ucapan"
-          frameStyle={frameStyle}
-          level={level}
+          design={design}
           eyebrow="Guest Book"
           title="Ucapan & Doa"
           subtitle="Doa restu dari Bapak/Ibu/Saudara/i sangat berarti bagi kami."
@@ -521,7 +544,7 @@ export default async function InvitationPage({
             tombol navigasi mengambang di paket apa pun. */}
         <footer className="relative px-5 pb-32 text-center sm:pb-28">
           <div className="mx-auto flex max-w-xl flex-col items-center gap-5">
-            <Divider frameStyle={frameStyle} level={level} />
+            <Divider design={design} />
 
             <p className="max-w-sm text-sm leading-relaxed opacity-75">
               Atas kehadiran dan doa restunya, kami mengucapkan terima kasih.

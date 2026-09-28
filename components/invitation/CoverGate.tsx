@@ -4,10 +4,9 @@ import Image from "next/image";
 import { useEffect, useState } from "react";
 import type { CSSProperties, ReactNode } from "react";
 
-import type { FrameStyle } from "@/config/themes";
 import { CornerFrame, Divider, Monogram } from "@/components/invitation/decor";
-import type { DecorLevel } from "@/components/invitation/decor";
-import { Gunungan } from "@/components/invitation/Batik";
+import type { Design } from "@/components/invitation/decor";
+import { MotifCrest } from "@/components/invitation/Ornaments";
 import MusicPlayer from "@/components/invitation/MusicPlayer";
 import NavDock from "@/components/invitation/NavDock";
 import type { NavItem } from "@/components/invitation/NavDock";
@@ -54,8 +53,7 @@ interface CoverGateProps {
    * mana yang benar-benar dirender — galeri dan amplop digital bisa tidak ada.
    */
   sections?: NavItem[];
-  frameStyle: FrameStyle;
-  level: DecorLevel;
+  design: Design;
   /** Isi undangan yang tersembunyi sampai sampul dibuka */
   children: ReactNode;
 }
@@ -79,8 +77,7 @@ export default function CoverGate({
   guestName,
   musicUrl,
   sections = [],
-  frameStyle,
-  level,
+  design,
   children,
 }: CoverGateProps) {
   const [opened, setOpened] = useState(false);
@@ -118,9 +115,9 @@ export default function CoverGate({
   };
 
   const frameClass =
-    frameStyle === "arch"
+    design.frameStyle === "arch"
       ? "rounded-t-[11rem] rounded-b-[2rem]"
-      : frameStyle === "floral"
+      : design.frameStyle === "floral"
         ? "rounded-[2.75rem]"
         : "rounded-[1.25rem]";
 
@@ -191,7 +188,7 @@ export default function CoverGate({
             />
           </>
         ) : (
-          <div className={`absolute inset-0 inv-grain inv-surface--${level}`} />
+          <div className={`absolute inset-0 inv-grain inv-surface--${design.level}`} />
         )}
 
         <div
@@ -211,8 +208,7 @@ export default function CoverGate({
           }
         >
           <CornerFrame
-            frameStyle={frameStyle}
-            level={level}
+            design={design}
             size="h-11 w-11 sm:h-14 sm:w-14"
           />
 
@@ -223,10 +219,14 @@ export default function CoverGate({
             {eyebrow}
           </p>
 
-          {/* Gunungan sebagai puncak kartu: siluet lancip yang langsung
-              terbaca sebagai Jawa, sekaligus memberi hierarki vertikal —
-              mata tamu turun dari gunungan ke monogram ke nama. */}
-          <Gunungan className="inv-cover-crest" width={40} />
+          {/* Ornamen puncak kartu. Semula selalu gunungan, sekarang mengikuti
+              motif yang dipilih — supaya sampul ikut berubah bersama seluruh
+              halaman, dan gunungan jadi pilihan admin, bukan keputusan
+              yang tertanam di komponen ini.
+
+              Hierarki vertikalnya tetap sama: mata tamu turun dari ornamen
+              ke monogram ke nama. */}
+          <MotifCrest motif={design.motif} width={40} className="inv-cover-crest" />
 
           <Monogram
             initials={`${groomName.charAt(0)}${brideName.charAt(0)}`}
@@ -240,7 +240,7 @@ export default function CoverGate({
             {brideName}
           </h1>
 
-          <Divider frameStyle={frameStyle} level={level} />
+          <Divider design={design} />
 
           {dateText ? (
             <p

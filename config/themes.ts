@@ -18,6 +18,8 @@
 
 import floralRomanticJson from "./themes/floral-romantic.json";
 import minimalGoldJson from "./themes/minimal-gold.json";
+import { defaultMotifForFrame, isMotifId } from "@/config/motifs";
+import type { MotifId } from "@/config/motifs";
 
 // ============================================
 // Tipe Dasar
@@ -96,6 +98,24 @@ export interface ThemeConfig {
   colors: ThemeColors;
   fonts: ThemeFonts;
   frameStyle: FrameStyle;
+
+  /**
+   * Motif ornamen bawaan tema ini.
+   *
+   * Ini yang membuat tiap tema punya "ciri" sendiri, seperti katalog tema pada
+   * layanan undangan digital yang sudah mapan: "Minimal Gold" selalu kawung
+   * berlapis emas, "Floral Romantic" selalu sakura. Tanpa field ini, semua tema
+   * akan memakai motif yang sama dan memilih tema jadi tidak berarti apa-apa.
+   *
+   * Admin tetap bisa menimpanya per undangan lewat pemilih motif di form —
+   * field ini cuma titik awal yang sering kali sudah benar.
+   *
+   * Di JSON bertipe `unknown`, jadi `defaultMotif` WAJIB diisi. `parseThemeConfig`
+   * sudah menurunkannya dari `frameStyle` kalau tidak ada, sehingga setiap tema
+   * yang lolos ke runtime pasti punya motif — tidak ada komponen yang perlu
+   * menulis `?? "kawung"` sendiri di banyak tempat.
+   */
+  defaultMotif: MotifId;
 }
 
 /** Batasan fitur yang berlaku untuk sebuah paket. */
@@ -155,6 +175,19 @@ export function parseThemeConfig(raw: unknown): ThemeConfig {
     );
   }
 
+  /**
+   * Motif bawaan bersifat opsional dan divalidasi secara LEMBUT.
+   *
+   * Field yang tidak dikenal diabaikan, bukan membuat `parseThemeConfig`
+   * melempar. Alasannya: `defaultMotif` ditambahkan setelah ada file tema dan
+   * baris database di produksi, dan salah ketik di satu tema tidak boleh
+   * menjatuhkan seluruh halaman — termasuk semua undangan lain yang tidak punya
+   * hubungannya dengan tema itu.
+   */
+  const defaultMotif = isMotifId(raw.defaultMotif)
+    ? raw.defaultMotif
+    : defaultMotifForFrame(frameStyle);
+
   if (!isRecord(raw.colors)) {
     throw new Error('[themes] Field "colors" wajib berupa objek.');
   }
@@ -181,6 +214,7 @@ export function parseThemeConfig(raw: unknown): ThemeConfig {
       bodyFont: requireString(fonts, "bodyFont", "fonts."),
     },
     frameStyle: frameStyle as FrameStyle,
+    defaultMotif,
   };
 }
 
