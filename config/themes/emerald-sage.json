@@ -1,0 +1,24 @@
+{
+  "id": "emerald-sage",
+  "name": "Emerald Sage",
+  "tierRequirement": "silver",
+  "colors": {
+    "primary": "#2E6350",
+    "secondary": "#E7EFEA",
+    "background": "#F8FBF9",
+    "text": "#1E2A25",
+    "accent": "#8A6D3B"
+  },
+  "fonts": {
+    "headingFont": "var(--font-italiana), Georgia, serif",
+    "bodyFont": "var(--font-inter), system-ui, sans-serif",
+    "scriptFont": "var(--font-great-vibes), 'Snell Roundhand', cursive"
+  },
+  "frameStyle": "minimalist",
+  "defaultMotif": "monstera",
+  "layout": {
+    "cover": "veil",
+    "section": "editorial",
+    "gallery": "grid"
+  }
+}

@@ -1,6 +1,6 @@
 import type { CSSProperties, ReactNode } from "react";
 
-import type { FrameStyle, TierType } from "@/config/themes";
+import type { FrameStyle, ThemeLayout, TierType } from "@/config/themes";
 import type { MotifCategory, MotifId } from "@/config/motifs";
 import { MOTIFS } from "@/config/motifs";
 import {
@@ -48,6 +48,16 @@ export interface Design {
   level: DecorLevel;
   /** Motif ornamen yang dipakai: pola latar, crest, dan sudut bingkai. */
   motif: MotifId;
+  /**
+   * Tata letak sampul, judul bagian, dan galeri — dari file tema.
+   *
+   * Yang selama ini memisahkan "tema" dari "template" adalah tiadanya field ini:
+   * setiap undangan memakai susunan yang sama, jadi mengganti tema hanya terasa
+   * seperti mengganti cat. Dengan satu field ini, `CoverGate`, `Section`, dan
+   * `PhotoGallery` masing-masing bercabang susunannya tanpa menambah satu pun
+   * prop baru — persis alasan objek ini dibuat.
+   */
+  layout: ThemeLayout;
 }
 
 export interface DecorProfile {
@@ -389,15 +399,29 @@ export function SectionWatermark({
   design,
   width = 150,
   className = "",
+  align = "center",
 }: {
   design: Design;
   /** Lebar crest dalam piksel. */
   width?: number;
   className?: string;
+  /**
+   * Penempatan horizontal watermark di dalam induk ber-`position: relative`.
+   * `center` (bawaan): di tengah, di atas judul — dipakai header rata tengah.
+   * `right`: menempel di kanan, di belakang konten header — dipakai header
+   * editorial yang rata kiri, supaya motif besar tidak bertumpuk dengan garis
+   * aksen tegak di kirinya.
+   */
+  align?: "center" | "right";
 }) {
   const profile = DECOR_PROFILES[design.level];
 
   if (!profile.watermark) return null;
+
+  const positionClass =
+    align === "right"
+      ? "top-1/2 right-0 -translate-y-1/2"
+      : "top-0 left-1/2 -translate-x-1/2 -translate-y-[38%]";
 
   return (
     // Diletakkan di atas judul lalu digeser naik 38% tingginya sendiri, bukan
@@ -406,7 +430,7 @@ export function SectionWatermark({
     // bentuk yang sama saling menimpa terbaca sebagai kesalahan render.
     // Ruang di atasnya memang kosong — `Section` memberi `py-16 sm:py-24`.
     <span
-      className={`pointer-events-none absolute top-0 left-1/2 -translate-x-1/2 -translate-y-[38%] ${className}`}
+      className={`pointer-events-none absolute ${positionClass} ${className}`}
       style={{
         color: "var(--theme-accent)",
         opacity: profile.watermarkOpacity,
@@ -831,19 +855,44 @@ export function Monogram({
 /**
  * Judul dengan tipografi tema. Pada paket VIP, judul mendapat kilau emas
  * bergerak; paket lain memakai warna solid agar tetap tenang dan terbaca.
+ *
+ * `variant` — ini jalan masuknya font script ke halaman tanpa merombak puluhan
+ * panggilan yang sudah ada:
+ *
+ *   - `heading` (bawaan): perilaku lama persis, font judul.
+ *   - `script`: memakai `--theme-font-script` untuk aksen pendek tulisan tangan
+ *     ("The Wedding Of", sapaan tamu). Kilau VIP tidak dipasang di sini, bukan
+ *     karena lupa, melainkan karena gradasi `inv-shimmer` dirancang untuk huruf
+ *     berjenjang dan membuat sambungan script berpendar putih.
  */
 export function ThemedHeading({
   children,
   level,
   className = "",
   as: Tag = "h2",
+  variant = "heading",
 }: {
   children: ReactNode;
   level: DecorLevel;
   className?: string;
   as?: "h1" | "h2" | "h3";
+  variant?: "heading" | "script";
 }) {
   const shimmer = DECOR_PROFILES[level].shimmerHeading;
+
+  if (variant === "script") {
+    return (
+      <Tag
+        className={className}
+        style={{
+          fontFamily: "var(--theme-font-script)",
+          color: "var(--theme-primary)",
+        }}
+      >
+        {children}
+      </Tag>
+    );
+  }
 
   return (
     <Tag

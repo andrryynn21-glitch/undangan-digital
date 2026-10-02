@@ -78,9 +78,46 @@ interface PhotoGalleryProps {
 }
 
 /**
+ * Kelas bentang untuk susunan `mosaic`: dinding bertingkat ala galeri foto.
+ *
+ * Foto pertama menjulang dua baris di kiri, dua foto berikutnya menumpuk di
+ * kanan, lalu polanya berulang dengan pergeseran supaya dindingnya tidak
+ * jatuh pada irama yang sama dua kali. Baris diberi tinggi tetap
+ * (`auto-rows`) agar foto yang menjulang tidak memaksa kolom sebelahnya
+ * ikut tinggi — itu yang membedakan mosaik dari sekadar kisi dengan `row-span`.
+ */
+function mosaicSpanClass(index: number, total: number): string {
+  if (total < 3) return "aspect-4/5";
+
+  // Foto pembuka selalu menjulang di kiri — jangkar visual seluruh dinding.
+  if (index % 5 === 0) return "row-span-2 h-full min-h-0";
+
+  // Foto kedua setelah jangkar memanjang di kanan atas, menutup baris.
+  if (index % 5 === 1) return "aspect-auto h-full min-h-0";
+
+  // Sisanya kotak: hening di antara dua bentuk yang menonjol.
+  return "aspect-square";
+}
+
+/**
+ * Kelas bentang untuk susunan `grid` (bawaan, perilaku lama).
+ *
+ * Foto pertama dibuat memanjang penuh supaya galeri tidak terasa monoton;
+ * sisanya kotak potret yang tenang. Ekstraksi ini bukan sekadar kerapian:
+ * logika bentang dipakai dua susunan yang berbeda (`grid` dan `mosaic`),
+ * dan tanpa fungsi bernama, cabang `mosaic` akan menduplikasi kondisi
+ * `index === 0 && urls.length > 2` yang rapuh itu.
+ */
+function gridSpanClass(index: number, total: number): string {
+  if (index === 0 && total > 2) return "col-span-2 aspect-4/3";
+  return "aspect-4/5";
+}
+
+/**
  * Galeri kenangan mempelai dengan pratinjau layar penuh (lightbox).
  *
- * Foto pertama dibuat lebih besar agar susunan grid tidak terasa monoton.
+ * Susunan kisi mengikuti `design.layout.gallery` dari file tema: `grid`
+ * (bawaan) untuk foto pertama besar di atas, `mosaic` untuk dinding bertingkat.
  * Navigasi lightbox bisa lewat tombol maupun tombol panah keyboard.
  */
 export default function PhotoGallery({
@@ -187,6 +224,17 @@ export default function PhotoGallery({
       current === null ? null : (current + delta + urls.length) % urls.length
     );
 
+  // Susunan mosaik memakai baris bertinggi tetap: foto yang menjulang dua baris
+  // (`row-span-2`) butuh acuan tinggi, kalau tidak ia ikut meregang mengikuti
+  // kolom tetangganya dan seluruh dinding runtuh jadi kisi biasa.
+  //
+  // Syarat `urls.length >= 3` ada karena mosaik butuh minimal tiga foto untuk
+  // membentuk pola jangkar + tumpukan; dengan satu-dua foto ia justru terlihat
+  // seperti kisi yang rusak. Batas ini dijaga di SATU tempat ini, bukan di
+  // `mosaicSpanClass`, supaya cabang render dan kelas bentang tidak bisa
+  // berbeda pendapat.
+  const isMosaic = design.layout.gallery === "mosaic" && urls.length >= 3;
+
   return (
     <>
       <div className="relative">
@@ -195,7 +243,13 @@ export default function PhotoGallery({
           size="h-12 w-12 sm:h-16 sm:w-16"
         />
 
-        <div className="relative grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4">
+        <div
+          className={`relative grid gap-3 sm:gap-4 ${
+            isMosaic
+              ? "auto-rows-[7.5rem] grid-cols-2 sm:auto-rows-[9rem]"
+              : "grid-cols-2 sm:grid-cols-3"
+          }`}
+        >
           {urls.map((url, index) => (
             <button
               key={`${url}-${index}`}
@@ -210,9 +264,9 @@ export default function PhotoGallery({
               }}
               aria-label={`Perbesar foto ${index + 1} dari ${urls.length}`}
               className={`inv-sheen group relative cursor-pointer overflow-hidden rounded-2xl focus-visible:outline-2 focus-visible:outline-offset-2 ${
-                index === 0 && urls.length > 2
-                  ? "col-span-2 aspect-4/3"
-                  : "aspect-4/5"
+                isMosaic
+                  ? mosaicSpanClass(index, urls.length)
+                  : gridSpanClass(index, urls.length)
               }`}
               style={{
                 outlineColor: "var(--theme-primary)",

@@ -4,7 +4,7 @@ import Image from "next/image";
 import { useEffect, useState } from "react";
 import type { CSSProperties, ReactNode } from "react";
 
-import { CornerFrame, Divider, Monogram } from "@/components/invitation/decor";
+import { CornerFrame, Divider, Monogram, ThemedHeading } from "@/components/invitation/decor";
 import type { Design } from "@/components/invitation/decor";
 import { MotifCrest } from "@/components/invitation/Ornaments";
 import MusicPlayer from "@/components/invitation/MusicPlayer";
@@ -167,29 +167,131 @@ export default function CoverGate({
         }`}
         style={{ backgroundColor: "var(--theme-background)" }}
       >
-        {/* Lapisan foto sampul + peredup agar teks tetap terbaca */}
-        {coverImageUrl ? (
-          <>
-            <Image
-              src={coverImageUrl}
-              alt=""
-              fill
-              sizes="100vw"
-              // Foto diisi admin dari URL bebas, jadi optimasi gambar Next
-              // dilewati — tanpa ini setiap host baru harus didaftarkan dulu
-              // di `images.remotePatterns`.
-              unoptimized
-              priority
-              className="object-cover"
-            />
-            <div
-              className="absolute inset-0"
-              style={{ background: scrimGradient }}
-            />
-          </>
+        {/* Crest dipakai ulang oleh varian veil & arch — TIDAK boleh diulang
+            dengan menulis ulang MotifCrest-nya di tiap varian, supaya perubahan
+            ukuran selalu konsisten. */}
+        {design.layout.cover === "veil" ? (
+          <CoverVeil
+            groomName={groomName}
+            brideName={brideName}
+            dateText={dateText}
+            coverPhotoUrl={coverImageUrl}
+            coverLuminance={coverLuminance}
+            guestName={guestName}
+            onOpen={() => setOpened(true)}
+            coverCrest={
+              <MotifCrest
+                motif={design.motif}
+                width={40}
+                className="inv-cover-crest"
+              />
+            }
+          />
+        ) : design.layout.cover === "arch" ? (
+          <CoverArch
+            groomName={groomName}
+            brideName={brideName}
+            dateText={dateText}
+            coverPhotoUrl={coverImageUrl}
+            coverLuminance={coverLuminance}
+            guestName={guestName}
+            onOpen={() => setOpened(true)}
+            coverCrest={
+              <MotifCrest
+                motif={design.motif}
+                width={40}
+                className="inv-cover-crest"
+              />
+            }
+          />
         ) : (
-          <div className={`absolute inset-0 inv-grain inv-surface--${design.level}`} />
+          <CoverClassic
+            groomName={groomName}
+            brideName={brideName}
+            eyebrow={eyebrow}
+            dateText={dateText}
+            coverImageUrl={coverImageUrl}
+            scrimGradient={scrimGradient}
+            frameClass={frameClass}
+            onPhoto={onPhoto}
+            textStyle={textStyle}
+            headingStyle={headingStyle}
+            design={design}
+            guestName={guestName}
+            onOpen={() => setOpened(true)}
+          />
         )}
+      </div>
+    </>
+  );
+}
+
+/**
+ * Sampul klasik: KARTU KACA DI TENGAH LAYAR.
+ *
+ * Ini isi komponen `CoverGate` yang lama, dipindahkan apa adanya ke fungsi
+ * sendiri supaya cabang `veil`/`arch` tidak menduplikasi dua ratus baris di
+ * atas. Satu-satunya tambahan di sini adalah sapaan script "The Wedding Of",
+ * yang memakai `ThemedHeading variant="script"` — huruf tangan mungil sebelum
+ * nama mempelai yang langsung memberi tahu tamu bahwa ini undangan, bukan
+ * halaman web biasa.
+ */
+function CoverClassic({
+  groomName,
+  brideName,
+  eyebrow,
+  dateText,
+  coverImageUrl,
+  scrimGradient,
+  frameClass,
+  onPhoto,
+  textStyle,
+  headingStyle,
+  design,
+  guestName,
+  onOpen,
+}: {
+  groomName: string;
+  brideName: string;
+  eyebrow: string;
+  dateText?: string;
+  coverImageUrl?: string;
+  scrimGradient: string;
+  frameClass: string;
+  onPhoto: boolean;
+  textStyle: CSSProperties;
+  headingStyle: CSSProperties;
+  design: Design;
+  guestName?: string;
+  onOpen: () => void;
+}) {
+  return (
+    <>
+      {/* Lapisan foto sampul + peredup agar teks tetap terbaca */}
+      {coverImageUrl ? (
+        <>
+          <Image
+            src={coverImageUrl}
+            alt=""
+            fill
+            sizes="100vw"
+            // Foto diisi admin dari URL bebas, jadi optimasi gambar Next
+            // dilewati — tanpa ini setiap host baru harus didaftarkan dulu
+            // di `images.remotePatterns`.
+            unoptimized
+            priority
+            className="object-cover"
+          />
+          <div
+            className="absolute inset-0"
+            style={{ background: scrimGradient }}
+          />
+        </>
+      ) : (
+        <div
+          className={`absolute inset-0 inv-grain inv-surface--${design.level}`}
+        />
+      )}
 
         <div
           className={`relative flex w-full max-w-sm flex-col items-center gap-6 px-8 py-14 text-center ${frameClass} ${
@@ -234,6 +336,19 @@ export default function CoverGate({
             textClass="text-lg"
           />
 
+          {/* Sapaan tangan sebelum nama: "The Wedding Of" dalam font script.
+              Bukan sekadar hiasan — undangan cetak selalu punya satu baris
+              seperti ini, dan kehadirannya yang membedakan sampul undangan
+              dari kartu nama biasa. */}
+          <ThemedHeading
+            as="h2"
+            level={design.level}
+            variant="script"
+            className="inv-cover-script text-2xl leading-none opacity-95"
+          >
+            The Wedding Of
+          </ThemedHeading>
+
           <h1 className="text-[2.6rem] leading-[1.1]" style={headingStyle}>
             {groomName}
             <span className="my-1 block text-xl opacity-70">&amp;</span>
@@ -255,16 +370,25 @@ export default function CoverGate({
               per tamu — tanpa itu, sampul tidak berubah sedikit pun. */}
           {guestName ? (
             <div className="flex flex-col items-center gap-1" style={textStyle}>
-              <p className="text-[0.62rem] uppercase tracking-[0.32em] opacity-70">
+              <p className="text-[0.66rem] uppercase tracking-[0.32em] opacity-75">
                 Kepada Yth.
               </p>
+              {/*
+                Nama tamu ditulis dengan font script tema — titik kecil yang
+                membuat sampul langsung terasa personal dan berkelas. Huruf
+                pertama dibesarkan karena huruf script yang disambungkan
+                terlihat buntung lengkung awalnya tanpa huruf kapital di depan.
+              */}
               <p
-                className="max-w-[16rem] text-base leading-snug font-medium break-words"
-                style={{ fontFamily: "var(--theme-font-heading)" }}
+                className="inv-cover-guestname max-w-[16rem] text-3xl leading-snug break-words"
+                style={{
+                  fontFamily: "var(--theme-font-script)",
+                  textShadow: "0 2px 18px rgba(0,0,0,0.55)",
+                }}
               >
-                {guestName}
+                {guestName.charAt(0).toUpperCase() + guestName.slice(1)}
               </p>
-              <p className="text-[0.66rem] tracking-[0.14em] opacity-65">
+              <p className="text-[0.7rem] tracking-[0.14em] opacity-70">
                 di tempat
               </p>
             </div>
@@ -272,14 +396,243 @@ export default function CoverGate({
 
           <button
             type="button"
-            onClick={() => setOpened(true)}
+            onClick={onOpen}
             className="inv-btn inv-pulse mt-2 cursor-pointer rounded-full px-9 py-3.5 text-sm font-medium tracking-[0.08em] focus-visible:outline-2 focus-visible:outline-offset-4"
             style={{ outlineColor: "var(--theme-accent)" }}
           >
             Buka Undangan
           </button>
         </div>
-      </div>
     </>
+  );
+}
+
+/**
+ * Sampul varian "veil": satu panel setinggi layar, tanpa kartu kaca.
+ *
+ * Ini varian tampilan, BUKAN komponen baru yang berdiri sendiri — semua yang
+ * dibaca teknologi bantu dan semua gestur browser dijaga identik dengan
+ * `CoverGate`: struktur heading yang sama, tombol yang sama, dan efek yang sama
+ * saat membesar-memudar. Yang berubah hanyalah susunan visualnya: ornamen di
+ * atas, nama di tengah, sapaan & tombol di bawah, sehingga foto sampul terlihat
+ * penuh tanpa tertutup kartu.
+ */
+export function CoverVeil({
+  groomName,
+  brideName,
+  dateText,
+  coverPhotoUrl,
+  coverLuminance,
+  guestName,
+  onOpen,
+  coverCrest,
+}: {
+  groomName: string;
+  brideName: string;
+  dateText?: string;
+  coverPhotoUrl?: string;
+  coverLuminance?: number;
+  guestName?: string;
+  onOpen: () => void;
+  coverCrest: ReactNode;
+}) {
+  return (
+    <div className="inv-cover-veil relative flex min-h-dvh w-full flex-col items-center justify-between gap-6 overflow-hidden px-6 py-10 text-center text-white">
+      {coverPhotoUrl ? (
+        <Image
+          src={coverPhotoUrl}
+          alt=""
+          fill
+          priority
+          sizes="100vw"
+          className="object-cover"
+        />
+      ) : null}
+
+      {/* Kerudung gradasi: foto asli di tengah, gelap di tepi atas-bawah tempat
+          teks berdiri. Opasitasnya tetap mengikuti terang-gelapnya foto, sama
+          seperti lapisan peredup pada sampul klasik. */}
+      <div
+        className="absolute inset-0"
+        style={{
+          background: `linear-gradient(to bottom,
+            rgba(10,8,6,${0.62 - (coverLuminance ?? 0.5) * 0.24}) 0%,
+            rgba(10,8,6,0.12) 34%,
+            rgba(10,8,6,0.10) 62%,
+            rgba(10,8,6,${0.66 - (coverLuminance ?? 0.5) * 0.24}) 100%)`,
+        }}
+        aria-hidden="true"
+      />
+
+      <div className="relative flex flex-col items-center gap-3 pt-4">
+        <p className="text-[0.66rem] tracking-[0.45em] uppercase opacity-85">
+          Undangan Pernikahan
+        </p>
+        {coverCrest}
+      </div>
+
+      <div className="relative flex flex-col items-center gap-3">
+        <p
+          className="text-2xl opacity-90"
+          style={{ fontFamily: "var(--theme-font-script)" }}
+        >
+          The Wedding Of
+        </p>
+        <h1
+          className="text-5xl leading-[1.08] sm:text-6xl"
+          style={{
+            fontFamily: "var(--theme-font-heading)",
+            textShadow: "0 2px 24px rgba(0,0,0,0.5)",
+          }}
+        >
+          {groomName}
+          <span className="my-1 block text-2xl opacity-80">&amp;</span>
+          {brideName}
+        </h1>
+        {dateText ? (
+          <p className="text-sm tracking-[0.18em] opacity-90">{dateText}</p>
+        ) : null}
+      </div>
+
+      <div className="relative flex w-full max-w-xs flex-col items-center gap-4">
+        {guestName ? (
+          <div className="flex flex-col items-center gap-1">
+            <p className="text-[0.66rem] tracking-[0.32em] uppercase opacity-75">
+              Kepada Yth.
+            </p>
+            <p
+              className="max-w-[16rem] text-3xl leading-snug break-words"
+              style={{
+                fontFamily: "var(--theme-font-script)",
+                textShadow: "0 2px 18px rgba(0,0,0,0.55)",
+              }}
+            >
+              {guestName.charAt(0).toUpperCase() + guestName.slice(1)}
+            </p>
+            <p className="text-[0.7rem] tracking-[0.14em] opacity-70">
+              di tempat
+            </p>
+          </div>
+        ) : null}
+
+        <button
+          type="button"
+          onClick={onOpen}
+          className="inv-btn inv-pulse cursor-pointer rounded-full px-9 py-3.5 text-sm font-medium tracking-[0.08em] focus-visible:outline-2 focus-visible:outline-offset-4"
+          style={{ outlineColor: "var(--theme-accent)" }}
+        >
+          Buka Undangan
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Sampul varian "arch": kartu kaca berbentuk gapura.
+ *
+ * Bentuknya mengikuti bahasa bingkai `arch` yang sudah dipakai `CornerFrame`,
+ * hanya diperbesar ke skala kartu: sisi tegak dengan lengkung penuh di atas.
+ * Bila suatu tema tidak punya foto sampul — atau gambar acuannya rusak —
+ * varian ini tetap berdiri sendiri karena yang membingkai nama adalah bentuk
+ * gapuranya, bukan foto di belakangnya.
+ */
+export function CoverArch({
+  groomName,
+  brideName,
+  dateText,
+  coverPhotoUrl,
+  coverLuminance,
+  guestName,
+  onOpen,
+  coverCrest,
+}: {
+  groomName: string;
+  brideName: string;
+  dateText?: string;
+  coverPhotoUrl?: string;
+  coverLuminance?: number;
+  guestName?: string;
+  onOpen: () => void;
+  coverCrest: ReactNode;
+}) {
+  return (
+    <div className="relative flex min-h-dvh w-full items-center justify-center overflow-hidden px-6 py-10">
+      {coverPhotoUrl ? (
+        <Image
+          src={coverPhotoUrl}
+          alt=""
+          fill
+          priority
+          sizes="100vw"
+          className="object-cover"
+        />
+      ) : null}
+
+      <div
+        className="absolute inset-0 bg-black"
+        style={{ opacity: 0.72 - (coverLuminance ?? 0.5) * 0.33 }}
+        aria-hidden="true"
+      />
+
+      <div className="inv-cover-arch relative flex w-full max-w-sm flex-col items-center gap-4 bg-[rgba(20,16,14,0.34)] px-8 pt-14 pb-12 text-center text-white backdrop-blur-md">
+        <div className="inv-cover-arch__frame" aria-hidden="true" />
+
+        <p className="text-[0.66rem] tracking-[0.42em] uppercase opacity-80">
+          Undangan Pernikahan
+        </p>
+
+        {coverCrest}
+
+        <p
+          className="text-2xl opacity-90"
+          style={{ fontFamily: "var(--theme-font-script)" }}
+        >
+          The Wedding Of
+        </p>
+
+        <h1
+          className="text-4xl leading-[1.12]"
+          style={{ fontFamily: "var(--theme-font-heading)" }}
+        >
+          {groomName}
+          <span className="my-1 block text-xl opacity-70">&amp;</span>
+          {brideName}
+        </h1>
+
+        {dateText ? (
+          <p className="text-sm tracking-[0.14em] opacity-90">{dateText}</p>
+        ) : null}
+
+        {guestName ? (
+          <div className="flex flex-col items-center gap-1">
+            <p className="text-[0.66rem] tracking-[0.32em] uppercase opacity-75">
+              Kepada Yth.
+            </p>
+            <p
+              className="max-w-[16rem] text-3xl leading-snug break-words"
+              style={{
+                fontFamily: "var(--theme-font-script)",
+                textShadow: "0 2px 18px rgba(0,0,0,0.55)",
+              }}
+            >
+              {guestName.charAt(0).toUpperCase() + guestName.slice(1)}
+            </p>
+            <p className="text-[0.7rem] tracking-[0.14em] opacity-70">
+              di tempat
+            </p>
+          </div>
+        ) : null}
+
+        <button
+          type="button"
+          onClick={onOpen}
+          className="inv-btn inv-pulse mt-1 cursor-pointer rounded-full px-9 py-3.5 text-sm font-medium tracking-[0.08em] focus-visible:outline-2 focus-visible:outline-offset-4"
+          style={{ outlineColor: "var(--theme-accent)" }}
+        >
+          Buka Undangan
+        </button>
+      </div>
+    </div>
   );
 }

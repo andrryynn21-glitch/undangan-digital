@@ -52,6 +52,7 @@ export const HOUSE_DESIGN: Design = {
   frameStyle: HOUSE_THEME.frameStyle,
   level: "lavish",
   motif: HOUSE_THEME.defaultMotif,
+  layout: HOUSE_THEME.layout,
 };
 
 /**

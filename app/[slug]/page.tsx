@@ -241,6 +241,7 @@ export default async function InvitationPage({
     frameStyle: theme.frameStyle,
     level,
     motif,
+    layout: theme.layout,
   };
   const frameStyle = design.frameStyle;
 

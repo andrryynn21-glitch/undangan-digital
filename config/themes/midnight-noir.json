@@ -1,0 +1,24 @@
+{
+  "id": "midnight-noir",
+  "name": "Midnight Noir",
+  "tierRequirement": "vip",
+  "colors": {
+    "primary": "#D8B45A",
+    "secondary": "#24211C",
+    "background": "#12100E",
+    "text": "#F6F1E7",
+    "accent": "#B08A46"
+  },
+  "fonts": {
+    "headingFont": "var(--font-cinzel), Georgia, serif",
+    "bodyFont": "var(--font-plus-jakarta-sans), system-ui, sans-serif",
+    "scriptFont": "var(--font-great-vibes), 'Snell Roundhand', cursive"
+  },
+  "frameStyle": "arch",
+  "defaultMotif": "art-deco",
+  "layout": {
+    "cover": "veil",
+    "section": "centered",
+    "gallery": "mosaic"
+  }
+}

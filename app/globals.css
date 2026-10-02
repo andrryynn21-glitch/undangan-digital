@@ -281,6 +281,82 @@ html {
 }
 
 /* --------------------------------------------------------------------------
+   Tata letak (layout): sampul arch, judul editorial, nama tamu script
+   -------------------------------------------------------------------------- */
+
+/*
+ * Kartu gapura: sisi tegak, lengkung penuh di atas.
+ *
+ * Bentuknya dibuat dengan radius TEPI ATAS selebar kartu, bukan `rounded-t-full`
+ * dari Tailwind: radius Tailwind memakai `9999px` sehingga lengkungnya selalu
+ * setengah lingkaran sempurna — bagus untuk pil, tapi untuk gapura selebar kartu
+ * HP hasilnya lonjong seperti telur. `border-radius: 10rem 10rem <sudut-bawah>`
+ * memberi lengkung elips yang landai, seperti pintu gerbang asli.
+ *
+ * Bingkai emas ganda digambar dengan `box-shadow: inset`, BUKAN border kedua:
+ * border kedua memakan ruang layout dan menggeser isi kartu, sedangkan
+ * `box-shadow` melukis di atas latar tanpa mengubah satu piksel pun susunannya.
+ */
+.inv-cover-arch {
+  border-radius: 10rem 10rem 1.75rem 1.75rem;
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.28),
+    inset 0 0 0 7px rgba(20, 16, 14, 0),
+    inset 0 0 0 8px color-mix(in srgb, var(--theme-gold) 55%, transparent),
+    0 40px 80px -40px rgba(0, 0, 0, 0.7);
+}
+
+/* Garis emas tipis di dalam lengkung: "ruang napas" antara isi dan bingkai. */
+.inv-cover-arch__frame {
+  position: absolute;
+  inset: 12px;
+  border-radius: 9rem 9rem 1.25rem 1.25rem;
+  border: 1px solid color-mix(in srgb, var(--theme-gold) 40%, transparent);
+  pointer-events: none;
+}
+
+/*
+ * Garis aksen tegak pada judul editorial.
+ *
+ * Gradasi tiga perhentian (transparan → emas → aksen) supaya garisnya "lahir"
+ * dari ketiadaan di atas dan "tenggelam" kembali di bawah — garis tegas
+ * penuh justru terlihat seperti pembatas tabel, bukan ornamen.
+ */
+.inv-editorial-rule {
+  background: linear-gradient(
+    to bottom,
+    transparent,
+    var(--theme-gold) 18%,
+    color-mix(in srgb, var(--theme-accent) 85%, transparent) 82%,
+    transparent
+  );
+}
+
+/*
+ * Sapaan tulisan tangan di sampul ("The Wedding Of").
+ *
+ * Huruf script berukuran 24px butuh napas bawah yang lebih lega dari huruf
+ * tegak: ekor huruf seperti "g" dan "y" menjuntai di bawah garis dasar, dan
+ * tanpa `padding-bottom` ia terpotong oleh baris berikutnya. `overflow` yang
+ * terlihat tetap dijaga supaya lengkungnya tidak terpotong kotak kartu.
+ */
+.inv-cover-script {
+  padding-bottom: 0.35em;
+  margin-bottom: -0.35em;
+}
+
+/*
+ * Nama tamu dalam huruf script: disambung antar-hurufnya, jadi jarak huruf
+ * bawaan peramban TIDAK boleh dipakai. `letter-spacing` sekecil apa pun —
+ * bahkan yang diwariskan dari induk — memutus sambungan Great Vibes dan
+ * membuatnya terbaca seperti huruf cetak yang miring, bukan tulisan tangan.
+ */
+.inv-cover-guestname {
+  letter-spacing: 0;
+  word-spacing: normal;
+}
+
+/* --------------------------------------------------------------------------
    Gerak motif batik
 
    Pola latar tidak harus diam total — tapi gerak lambat yang hampir tak

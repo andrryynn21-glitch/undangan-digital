@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 
 import { getThemeConfig } from "@/config/themes";
 import { getTraditionOverride } from "@/config/cultures";
+import { MotifCrest } from "@/components/invitation/Ornaments";
 import {
   applyCulturalOverride,
   applyCustomColorOverride,
@@ -197,12 +198,13 @@ export default function ThemePalettePreview({
       ? { ...base, colors: resolvePaletteColors(base.colors, status.palette) }
       : base;
 
-  const finalColors = ensureReadableTheme(
+  const finalTheme = ensureReadableTheme(
     applyCustomColorOverride(
       applyCulturalOverride(withImage, { tradition, region: "" }),
       customColors ?? null
     )
-  ).colors;
+  );
+  const finalColors = finalTheme.colors;
 
   const override = getTraditionOverride(tradition).colors;
 
@@ -255,6 +257,79 @@ export default function ThemePalettePreview({
           {customOverridden.join(", ")}.
         </p>
       ) : null}
+
+      {/*
+        Pratinjau tata letak: admin yang memilih tema tidak sedang memilih lima
+        kotak warna — ia sedang memilih SUSUNAN. Satu miniatur sampul & judul
+        yang mengikuti `layout` tema memberi tahu admin: sampul tema ini kartu
+        di tengah (`classic`), panel setinggi layar (`veil`), atau gapura
+        (`arch`); judulnya rata tengah atau editorial.
+      */}
+      <div className="flex items-center gap-4 rounded-xl border border-zinc-200 px-4 py-3 dark:border-zinc-700">
+        <span
+          className="flex h-16 w-12 shrink-0 flex-col items-center justify-center gap-1 overflow-hidden rounded-md border px-1 text-center"
+          style={{
+            backgroundColor: finalColors.background,
+            borderColor: finalColors.accent,
+            color: finalColors.primary,
+          }}
+          aria-hidden="true"
+        >
+          <span
+            className="block w-3/4 rounded-full"
+            style={{
+              height: 2,
+              backgroundColor: finalColors.accent,
+            }}
+          />
+          <span
+            className="block w-full leading-none"
+            style={{
+              fontFamily:
+                finalTheme.fonts.scriptFont ?? finalTheme.fonts.headingFont,
+              fontSize: 11,
+            }}
+          >
+            Aa
+          </span>
+          <span
+            className="block w-1/2 rounded-full"
+            style={{ height: 1, backgroundColor: finalColors.text }}
+          />
+        </span>
+
+        <div className="flex min-w-0 flex-col gap-0.5 text-xs text-zinc-600 dark:text-zinc-300">
+          <p className="font-medium text-zinc-800 dark:text-zinc-100">
+            {base.name}
+          </p>
+          <p>
+            Sampul:{" "}
+            {finalTheme.layout.cover === "veil"
+              ? "panel penuh (veil)"
+              : finalTheme.layout.cover === "arch"
+                ? "kartu gapura (arch)"
+                : "kartu kaca tengah (classic)"}
+          </p>
+          <p>
+            Judul bagian:{" "}
+            {finalTheme.layout.section === "editorial"
+              ? "rata kiri bergaris (editorial)"
+              : "rata tengah (centered)"}
+          </p>
+          <p>
+            Galeri:{" "}
+            {finalTheme.layout.gallery === "mosaic"
+              ? "dinding bertingkat (mosaic)"
+              : "kisi beraturan (grid)"}
+          </p>
+          <p className="flex items-center gap-1.5">
+            <span style={{ color: finalColors.accent }}>
+              <MotifCrest motif={base.defaultMotif} width={16} />
+            </span>
+            Motif bawaan: {base.defaultMotif}
+          </p>
+        </div>
+      </div>
     </div>
   );
 }

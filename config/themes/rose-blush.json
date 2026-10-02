@@ -1,0 +1,24 @@
+{
+  "id": "rose-blush",
+  "name": "Rose Blush",
+  "tierRequirement": "premium",
+  "colors": {
+    "primary": "#A64A63",
+    "secondary": "#F9E9EC",
+    "background": "#FFFAFA",
+    "text": "#3B272D",
+    "accent": "#B98A5E"
+  },
+  "fonts": {
+    "headingFont": "var(--font-cormorant-garamond), Georgia, serif",
+    "bodyFont": "var(--font-plus-jakarta-sans), system-ui, sans-serif",
+    "scriptFont": "var(--font-great-vibes), 'Snell Roundhand', cursive"
+  },
+  "frameStyle": "floral",
+  "defaultMotif": "sakura",
+  "layout": {
+    "cover": "arch",
+    "section": "editorial",
+    "gallery": "mosaic"
+  }
+}

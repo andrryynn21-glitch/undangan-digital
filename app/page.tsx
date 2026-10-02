@@ -285,6 +285,7 @@ export default function Home() {
                       frameStyle: theme.frameStyle,
                       level: "rich",
                       motif: theme.defaultMotif,
+                      layout: theme.layout,
                     }}
                     size="h-10 w-10"
                   />
