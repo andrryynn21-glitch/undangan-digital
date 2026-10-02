@@ -42,9 +42,6 @@ const DECOR_CONTRAST = 3;
 /** Jarak rona minimum agar aksen terbaca berbeda dari warna utama. */
 const MIN_HUE_DISTANCE = 40;
 
-/** Pemutaran rona bila gambar tidak menyediakan warna kedua yang cukup beda. */
-const HUE_ROTATION = 150;
-
 /**
  * Ambang `luminance` gambar untuk memilih kanvas.
  *
@@ -61,11 +58,11 @@ const LIGHT_CANVAS_MIN = 0.55;
  *
  * BAHAYA ROTASI BLIND
  *
- * Rotasi tetap 150° (lihat `HUE_ROTATION`) tapi TIDAK lagi diterapkan
- * buta pada apa pun. Dari coklat batik hue ~15°, rotasi 150° mendarat
- * persis di hue ~165° — hijau/teal. Hasilnya: aksen hijau tosca di antara
- * krem dan coklat tua, warna yang tidak ada di mana pun pada foto maupun
- * konsep batik Jawa, dan itulah yang terlihat "jelek" seperti yang dilaporkan.
+ * Pendekatan lama memutar rona sebesar 150° secara buta. Dari coklat batik
+ * hue ~15°, rotasi itu mendarat persis di hue ~165° — hijau/teal. Hasilnya:
+ * aksen hijau tosca di antara krem dan coklat tua, warna yang tidak ada di
+ * mana pun pada foto maupun konsep batik Jawa, dan itulah yang terlihat
+ * "jelek" seperti yang dilaporkan. Rotasi buta itu sudah dihapus seluruhnya.
  *
  * Aturannya: rona aksen harus dari gambar bila warnanya memang tersedia.
  * Bila tidak — gambar hanya punya satu keluarga warna — warna tuanya
@@ -156,7 +153,7 @@ export type CustomColorOverride = Partial<
  * form bisa menampilkan input untuk `text` sementara server membuangnya.
  */
 export const CUSTOM_COLOR_FIELDS = [
-  { key: "background", label: "Latar", hint: "W dasar halaman." },
+  { key: "background", label: "Latar", hint: "Warna dasar halaman." },
   { key: "primary", label: "Utama", hint: "Judul & tombol utama." },
   { key: "secondary", label: "Pendukung", hint: "Kartu & panel." },
   { key: "accent", label: "Aksen", hint: "Ornamen, garis, ikon." },
@@ -196,12 +193,32 @@ export function parseCustomColors(value: unknown): CustomColorOverride | null {
 // Konversi warna
 // ============================================
 
+/**
+ * Hex → RGB. Menerima `#rgb` dan `#rrggbb`, dengan atau tanpa `#`.
+ *
+ * BENTUK 3 DIGIT WAJIB DITERIMA DI SINI. `HEX_INPUT` di atas meloloskan
+ * `#abc`, jadi `parseCustomColors()` menyimpannya apa adanya ke
+ * `theme_config`. Sebelumnya fungsi ini hanya mengenali 6 digit dan
+ * mengembalikan `null` untuk nilai itu — dan `null` di sini tidak berhenti
+ * sebagai satu warna yang gagal dibaca: `ensureReadableColors()` langsung
+ * `return colors` tanpa perubahan begitu `background` atau `text` tidak
+ * terbaca, sehingga SELURUH koreksi kontras WCAG batal diam-diam dan token
+ * kanvas (`onPrimary`, `surface`, `gold`, `border`) tidak pernah dihitung.
+ * Admin yang mengetik `#fff` — hex yang sah dan memang diizinkan form —
+ * mendapat undangan yang kontrasnya tidak dijamin sama sekali.
+ */
 export function hexToRgb(hex: string): Rgb | null {
-  const match = /^#?([0-9a-f]{6})$/i.exec(hex.trim());
+  const match = /^#?([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(hex.trim());
 
   if (!match) return null;
 
-  const n = parseInt(match[1], 16);
+  const digits =
+    match[1].length === 3
+      ? // `#abc` → `#aabbcc`: setiap digit digandakan, sesuai aturan CSS.
+        match[1].replace(/./g, (d) => d + d)
+      : match[1];
+
+  const n = parseInt(digits, 16);
 
   return [(n >> 16) & 255, (n >> 8) & 255, n & 255];
 }

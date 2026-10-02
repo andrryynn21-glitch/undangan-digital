@@ -29,6 +29,10 @@ import {
   CREATE_INVITATION_INITIAL_STATE,
   MAX_PAYMENT_ACCOUNTS,
   MAX_QUOTE_LENGTH,
+  MAX_RUNDOWN_ITEMS,
+  MAX_RUNDOWN_NOTE_LENGTH,
+  MAX_RUNDOWN_TIME_LENGTH,
+  MAX_RUNDOWN_TITLE_LENGTH,
   MAX_STORY_ITEMS,
   MAX_STORY_TEXT_LENGTH,
   MAX_STORY_TITLE_LENGTH,
@@ -36,6 +40,7 @@ import {
 import type {
   InvitationRow,
   PaymentAccount,
+  RundownItem,
   StoryItem,
 } from "@/types/invitation";
 
@@ -91,6 +96,16 @@ interface StoryRow extends StoryItem {
  * lebih dulu.
  */
 function toStoryRows(items: StoryItem[] | undefined): StoryRow[] {
+  return (items ?? []).map((item, index) => ({ id: index, ...item }));
+}
+
+/** Baris "Susunan Acara" di form; `id` hanya untuk `key` React. */
+interface RundownRow extends RundownItem {
+  id: number;
+}
+
+/** Sama seperti kisah, susunan acara tidak dimulai dengan baris kosong. */
+function toRundownRows(items: RundownItem[] | undefined): RundownRow[] {
   return (items ?? []).map((item, index) => ({ id: index, ...item }));
 }
 
@@ -214,7 +229,10 @@ export default function InvitationForm({ initial }: InvitationFormProps) {
     toStoryRows(initial?.event_data?.story)
   );
   const nextStoryId = useRef(storyRows.length);
-
+  const [rundownRows, setRundownRows] = useState<RundownRow[]>(() =>
+    toRundownRows(initial?.event_data?.rundown)
+  );
+  const nextRundownId = useRef(rundownRows.length);
   // Dipantau untuk menampilkan hint daerah yang sesuai tradisi terpilih.
   const [tradition, setTradition] = useState(
     typeof initial?.theme_config?.tradition === "string"
@@ -242,17 +260,6 @@ export default function InvitationForm({ initial }: InvitationFormProps) {
     const saved = initial?.theme_config?.motif;
     return isMotifId(saved) ? saved : "";
   });
-
-  /**
-   * Motif bawaan tema yang sedang dipilih, untuk tombol "Ikuti tema".
-   *
-   * Dihitung ulang setiap render, bukan disimpan di state: kalau admin berganti
-   * tema, tombol ini harus langsung menawarkan motif tema yang baru. Nilai
-   * lama yang disimpan di state akan membuat tombol proposes motif yang sudah
-   * tidak berlaku.
-   */
-  const themeDefaultMotif =
-    getAllThemes().find((t) => t.id === themeId)?.defaultMotif ?? "kawung";
 
   /**
    * Warna manual yang menimpa tema. Object kosong berarti "semua dari tema".
@@ -283,6 +290,25 @@ export default function InvitationForm({ initial }: InvitationFormProps) {
   if (!availableThemes.some((theme) => theme.id === themeId)) {
     setThemeId(availableThemes[0].id);
   }
+
+  /**
+   * Motif bawaan tema yang sedang dipilih, untuk tombol "Ikuti tema".
+   *
+   * Dihitung ulang setiap render, bukan disimpan di state: kalau admin berganti
+   * tema, tombol ini harus langsung menawarkan motif tema yang baru. Nilai lama
+   * yang disimpan di state akan membuat tombol menawarkan motif yang sudah
+   * tidak berlaku.
+   *
+   * HARUS tetap berada SESUDAH deklarasi `themeId` di atas. Sebelumnya baris
+   * ini berada jauh di atasnya, dan karena `Array.prototype.find` memanggil
+   * predikatnya secara sinkron, `themeId` terbaca di dalam temporal dead
+   * zone-nya sendiri — `ReferenceError` di setiap render, seluruh halaman
+   * admin mati. `tsc` tidak menangkapnya karena rujukannya ada di dalam arrow
+   * function, dan `next build` tidak menangkapnya karena `/admin` dirender
+   * on-demand.
+   */
+  const themeDefaultMotif =
+    THEMES.find((theme) => theme.id === themeId)?.defaultMotif ?? "kawung";
 
   const lockedThemes = THEMES.length - availableThemes.length;
   const features = getTierFeatures(tier);
@@ -328,8 +354,10 @@ export default function InvitationForm({ initial }: InvitationFormProps) {
       // terhapus oleh penggantian `resetKey`.
       setBackgroundUrl("");
       // Baris kisah juga dipegang di sini, jadi harus dikosongkan sendiri —
-      // komponennya tidak ikut di-reset oleh `resetKey`.
+      // komponennya tidak ikut di-reset oleh `resetKey`. Hal yang sama berlaku
+      // untuk susunan acara.
       setStoryRows([]);
+      setRundownRows([]);
     }
   }
 
@@ -360,6 +388,21 @@ export default function InvitationForm({ initial }: InvitationFormProps) {
 
   function removeStoryRow(id: number) {
     setStoryRows((rows) => rows.filter((row) => row.id !== id));
+  }
+
+  function addRundownRow() {
+    setRundownRows((rows) =>
+      rows.length >= MAX_RUNDOWN_ITEMS
+        ? rows
+        : [
+            ...rows,
+            { id: nextRundownId.current++, time: "", title: "", note: "" },
+          ]
+    );
+  }
+
+  function removeRundownRow(id: number) {
+    setRundownRows((rows) => rows.filter((row) => row.id !== id));
   }
 
   return (
@@ -760,6 +803,88 @@ export default function InvitationForm({ initial }: InvitationFormProps) {
       </Group>
 
       <Group
+        title="Susunan Acara"
+        hint={`opsional, maksimal ${MAX_RUNDOWN_ITEMS} baris — tampil sebagai jadwal jam di undangan`}
+      >
+        {rundownRows.length === 0 ? (
+          <p className="text-sm text-zinc-500">
+            Belum ada susunan acara. Tambahkan bila ingin memberi tahu tamu
+            kegiatan apa saja yang berlangsung dan pukul berapa.
+          </p>
+        ) : null}
+
+        {rundownRows.map((row, index) => (
+          <div
+            key={row.id}
+            className="flex flex-col gap-3 rounded-xl border border-zinc-200 px-3.5 py-3.5 dark:border-zinc-800"
+          >
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-xs font-medium text-zinc-500">
+                Kegiatan {index + 1}
+              </p>
+
+              <button
+                type="button"
+                onClick={() => removeRundownRow(row.id)}
+                aria-label={`Hapus kegiatan ke-${index + 1}`}
+                className="rounded-lg border border-zinc-300 px-3 py-1 text-xs text-zinc-600 transition-colors hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-400 dark:hover:bg-zinc-800"
+              >
+                Hapus
+              </button>
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-[1fr_1.6fr]">
+              {/* Waktunya kolom teks bebas, bukan `type="time"`. Susunan acara
+                  asli sering tidak berjam pasti — "Setelah Isya", "Selesai
+                  akad" — dan pemilih jam memaksa admin mengarang angka yang
+                  tidak ada di jadwalnya. */}
+              <Field label="Waktu" labelHidden={index > 0}>
+                <input
+                  type="text"
+                  name="rundownTime"
+                  defaultValue={row.time}
+                  maxLength={MAX_RUNDOWN_TIME_LENGTH}
+                  placeholder="08.00 WIB"
+                  className={fieldClass}
+                />
+              </Field>
+
+              <Field label="Kegiatan" labelHidden={index > 0}>
+                <input
+                  type="text"
+                  name="rundownTitle"
+                  defaultValue={row.title}
+                  maxLength={MAX_RUNDOWN_TITLE_LENGTH}
+                  placeholder="Akad Nikah"
+                  className={fieldClass}
+                />
+              </Field>
+            </div>
+
+            <Field label="Keterangan" labelHidden={index > 0}>
+              <input
+                type="text"
+                name="rundownNote"
+                defaultValue={row.note}
+                maxLength={MAX_RUNDOWN_NOTE_LENGTH}
+                placeholder="Opsional, misal: khusus keluarga inti"
+                className={fieldClass}
+              />
+            </Field>
+          </div>
+        ))}
+
+        <button
+          type="button"
+          onClick={addRundownRow}
+          disabled={rundownRows.length >= MAX_RUNDOWN_ITEMS}
+          className="self-start rounded-lg border border-dashed border-zinc-400 px-4 py-2 text-sm font-medium transition-colors hover:bg-zinc-100 disabled:opacity-40 disabled:hover:bg-transparent dark:border-zinc-600 dark:hover:bg-zinc-800"
+        >
+          + Tambah Kegiatan
+        </button>
+      </Group>
+
+      <Group
         title="Desain Budaya"
         hint="pilih tradisi untuk mengubah palet warna & motif ornamen undangan"
       >
@@ -865,9 +990,7 @@ export default function InvitationForm({ initial }: InvitationFormProps) {
                   aria-label={label}
                   value={
                     customColors[key] ??
-                    getAllThemes()
-                      .find((t) => t.id === themeId)
-                      ?.colors[key] ??
+                    THEMES.find((theme) => theme.id === themeId)?.colors[key] ??
                     "#000000"
                   }
                   onChange={(e) =>

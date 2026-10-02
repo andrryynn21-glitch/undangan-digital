@@ -86,6 +86,30 @@ export interface StoryItem {
 }
 
 /**
+ * Satu baris "Susunan Acara" — rundown jam per jam di hari pernikahan.
+ *
+ * BEDANYA DENGAN `WeddingEvent`: `events` menjawab "acara apa saja, di mana,
+ * tanggal berapa" — satu entri untuk akad, satu untuk resepsi, masing-masing
+ * dengan tempat dan alamatnya sendiri. Rundown menjawab "apa yang terjadi jam
+ * berapa" DI DALAM satu hari, di tempat yang sudah disebut acara induknya.
+ * Karena itu baris rundown tidak punya tempat maupun alamat: mengulangnya di
+ * tiap baris hanya akan jadi sumber data yang bisa berbeda dari `events`.
+ *
+ * Waktunya DITULIS BEBAS, sama seperti `startTime` pada `WeddingEvent`, bukan
+ * tipe waktu. Rundown asli sering tidak berbentuk jam pasti — "setelah Isya",
+ * "selesai akad" — dan memaksanya jadi jam justru membuat admin mengarang
+ * angka yang tidak ada di susunan acaranya.
+ */
+export interface RundownItem {
+  /** Keterangan waktu yang ditulis bebas, misal "08.00 WIB" atau "Setelah Isya" */
+  time: string;
+  /** Nama kegiatan, misal "Akad Nikah", "Sesi Foto Keluarga" */
+  title: string;
+  /** Keterangan tambahan sebaris, opsional */
+  note?: string;
+}
+
+/**
  * Isi kolom `invitations.event_data`.
  *
  * Tabel tidak punya kolom khusus untuk daftar acara maupun kutipan, jadi
@@ -101,6 +125,8 @@ export interface EventData {
   cover_photo_url?: string;
   /** Kisah perjalanan pasangan; bagian "Kisah Kami" disembunyikan bila kosong */
   story?: StoryItem[];
+  /** Susunan acara; bagian "Susunan Acara" disembunyikan bila kosong */
+  rundown?: RundownItem[];
   /**
    * Foto galeri kenangan. Jumlahnya dibatasi `getTierFeatures(tier).maxPhotos`
    * saat undangan dibuat, jadi array ini tidak pernah lebih panjang dari kuota

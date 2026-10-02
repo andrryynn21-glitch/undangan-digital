@@ -67,7 +67,14 @@ export default function LoveStory({
                   </p>
                 ) : null}
 
-                <ThemedHeading as="h3" level={design.level} className="text-xl sm:text-2xl">
+                {/* 24 px di semua lebar, bukan `text-xl sm:text-2xl`. Pada
+                    paket VIP judul ini berkilau, dan kilau itu menurunkan
+                    kontras `primary` dari 4,5:1 ke sekitar 3,0:1 — masih sah
+                    untuk teks besar, tapi 20 px berbobot 400 bukan teks besar,
+                    sehingga judul ini dulu satu-satunya heading di aplikasi
+                    yang melanggar ambang kontrasnya sendiri di layar HP.
+                    Alasan lengkapnya ada di `.inv-shimmer` (`app/globals.css`). */}
+                <ThemedHeading as="h3" level={design.level} className="text-2xl">
                   {item.title}
                 </ThemedHeading>
 

@@ -213,8 +213,21 @@ export default function ShareBar({
     const anchor = document.createElement("a");
     anchor.href = url;
     anchor.download = `undangan-${coupleNames.replace(/\s+/g, "-").toLowerCase()}.ics`;
+
+    // Anchor-nya HARUS masuk ke dokumen dulu, dan blob URL-nya baru boleh
+    // dicabut setelah peramban sempat membacanya.
+    //
+    // Firefox mengabaikan `click()` pada anchor yang tidak terpasang di DOM,
+    // jadi tanpa `appendChild` tombol "Simpan ke kalender" tidak melakukan
+    // apa pun di sana. `revokeObjectURL()` yang langsung dipanggil setelah
+    // `click()` juga terlalu cepat: unduhan dimulai asinkron, dan mencabut
+    // URL-nya di baris yang sama bisa membatalkan unduhan sebelum berkasnya
+    // terbaca. `setTimeout` melepasnya setelah tugas saat ini selesai —
+    // tetap dilepas, jadi blob-nya tidak bocor.
+    document.body.appendChild(anchor);
     anchor.click();
-    URL.revokeObjectURL(url);
+    anchor.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 0);
   }
 
   const hasSchedule = Boolean(startIso && endIso);

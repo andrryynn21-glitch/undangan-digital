@@ -11,12 +11,14 @@ import EventDetails from "@/components/invitation/EventDetails";
 import LoveStory from "@/components/invitation/LoveStory";
 import PhotoGallery from "@/components/invitation/PhotoGallery";
 import RsvpForm from "@/components/invitation/RsvpForm";
+import Rundown from "@/components/invitation/Rundown";
 import { Section } from "@/components/invitation/Section";
 import ShareBar from "@/components/invitation/ShareBar";
 import WishBook from "@/components/invitation/WishBook";
 import {
   Backdrop,
   Divider,
+  PetalLayer,
   ThemedHeading,
   getDecorLevel,
 } from "@/components/invitation/decor";
@@ -262,6 +264,7 @@ export default async function InvitationPage({
   const quote = invitation.event_data?.quote;
   const coverPhotoUrl = invitation.event_data?.cover_photo_url;
   const story = invitation.event_data?.story ?? [];
+  const rundown = invitation.event_data?.rundown ?? [];
   const galleryUrls = invitation.event_data?.gallery_urls ?? [];
   const accounts = invitation.payment_data?.accounts ?? [];
   const countdown = getCountdownEvent(events);
@@ -283,6 +286,9 @@ export default async function InvitationPage({
       ? [{ id: "kisah", label: "Kisah", icon: "story" as const }]
       : []),
     { id: "acara", label: "Acara", icon: "event" },
+    ...(rundown.length > 0
+      ? [{ id: "susunan", label: "Susunan", icon: "rundown" as const }]
+      : []),
     ...(galleryUrls.length > 0
       ? [{ id: "galeri", label: "Galeri", icon: "gallery" as const }]
       : []),
@@ -331,6 +337,12 @@ export default async function InvitationPage({
         design={design}
         backgroundUrl={themeImage.backgroundUrl}
       />
+
+      {/* Serpih motif yang jatuh DI DEPAN semuanya — satu-satunya lapisan
+          dekorasi yang tidak di belakang teks. Ditaruh di sini, sebagai
+          saudara `CoverGate` dan bukan di dalamnya, karena posisinya `fixed`
+          dan harus tetap melintas saat sampul sudah dibuka. */}
+      <PetalLayer design={design} />
 
       <CoverGate
         groomName={groom.nickName}
@@ -474,6 +486,22 @@ export default async function InvitationPage({
             design={design}
           />
         </Section>
+
+        {/* Susunan acara — hanya muncul bila pasangan mengisinya.
+            Ditaruh SETELAH "Detail Acara" karena rundown menjelaskan isi hari
+            yang tempat dan tanggalnya baru saja disebut di atasnya; dibaca
+            lebih dulu, daftar jamnya menggantung tanpa konteks. */}
+        {rundown.length > 0 ? (
+          <Section
+            id="susunan"
+            design={design}
+            eyebrow="Rundown"
+            title="Susunan Acara"
+            subtitle="Rangkaian kegiatan pada hari bahagia kami."
+          >
+            <Rundown items={rundown} design={design} />
+          </Section>
+        ) : null}
 
         {/* Galeri kenangan */}
         {galleryUrls.length > 0 ? (

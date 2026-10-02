@@ -114,6 +114,18 @@ const EVENTS = [
   },
 ];
 
+// Jamnya sengaja menyambung dengan `EVENTS` di atas: akad 08.00 dan resepsi
+// 11.00 muncul juga di sini sebagai dua baris, supaya demo memperlihatkan
+// hubungan "Detail Acara" (di mana) dengan "Susunan Acara" (pukul berapa).
+const RUNDOWN = [
+  { time: "07.30 WIB", title: "Kedatangan Tamu", note: "Registrasi di pintu utama" },
+  { time: "08.00 WIB", title: "Akad Nikah", note: "Khusus keluarga inti" },
+  { time: "09.30 WIB", title: "Sesi Foto Keluarga" },
+  { time: "11.00 WIB", title: "Resepsi Dimulai" },
+  { time: "12.30 WIB", title: "Hiburan & Ramah Tamah" },
+  { time: "15.00 WIB", title: "Penutupan" },
+];
+
 const QUOTE =
   "Dan di antara tanda-tanda kekuasaan-Nya ialah Dia menciptakan untukmu pasangan hidup dari jenismu sendiri, supaya kamu dapat ketenangan hati. (QS. Ar-Rum: 21)";
 
@@ -153,6 +165,7 @@ function buildRow({ slug, tier, photos }) {
     event_data: {
       events: EVENTS,
       quote: QUOTE,
+      rundown: RUNDOWN,
       cover_photo_url: "https://picsum.photos/seed/paket-cover/1400/1800",
       gallery_urls: galleryUrls(photos),
     },

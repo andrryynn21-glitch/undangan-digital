@@ -3,6 +3,7 @@ import type { ReactNode } from "react";
 import {
   CornerFrame,
   Divider,
+  SectionWatermark,
   ThemedHeading,
   getDecorProfile,
 } from "@/components/invitation/decor";
@@ -62,7 +63,14 @@ export function Section({
             bertumpuk dengan teks. */}
         <div className={profile.corners ? "px-3 py-5 sm:px-9 sm:py-8" : ""}>
           {title ? (
-            <header className="mb-9 flex flex-col items-center gap-4 text-center">
+            <header className="relative mb-9 flex flex-col items-center gap-4 text-center">
+              {/* Ornamen motif besar, paling belakang. Ditaruh sebelum isi
+                  header supaya urutan susunnya benar tanpa perlu z-index:
+                  keduanya di dalam `.inv-page` yang ber-`isolation: isolate`,
+                  jadi menambah z-index di sini hanya akan menciptakan konteks
+                  susun baru yang tidak dibutuhkan. */}
+              <SectionWatermark design={design} />
+
               {eyebrow ? (
                 <p className="text-[0.68rem] uppercase tracking-[0.35em] opacity-65">
                   {eyebrow}

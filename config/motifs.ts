@@ -21,17 +21,45 @@
  * dan menolak motif justru memaksa admin membuat file tema baru — persis
  * pekerjaan yang seharusnya dihemat oleh katalog ini.
  *
- * MENAMBAH MOTIF BARU:
- * 1. Tambahkan id ke `MOTIF_IDS`.
+ * MENAMBAH MOTIF BARU — ENAM HAL, BUKAN TIGA
+ *
+ * Daftar di sini dulu hanya menyebut tiga langkah, dan itu menyesatkan: dua
+ * dari enam berkas yang harus disentuh berada di `Ornaments.tsx` dengan nama
+ * yang tidak terduga, jadi orang yang mengikuti daftar lama akan berhenti
+ * setelah motifnya muncul di form admin — lalu menemukan `tsc` gagal dengan
+ * tiga galat sekaligus. Yang benar:
+ *
+ * 1. Tambahkan id ke `MOTIF_IDS` (di grup kategorinya, karena urutan daftar
+ *    ini juga urutan tampil di form admin).
  * 2. Tambahkan entri ke `MOTIFS` (label, kategori, catatan untuk admin).
- * 3. Gambar SVG-nya di `components/invitation/Ornaments.tsx`.
+ * 3. Tambahkan ukuran ubinnya ke `TILE_SIZE` di `Ornaments.tsx`.
+ * 4. Gambar UBIN-nya (satuan pola latar yang menyambung ke tetangganya).
+ * 5. Gambar CREST-nya (ornamen 44×56 yang berdiri sendiri).
+ * 6. Gambar GLYPH SUDUT-nya (tanda 24×24 setebal mungkin).
+ *
+ * Nomor 3–6 semuanya di `components/invitation/Ornaments.tsx`, dan semuanya
+ * dijaga `Record<MotifId, …>` tanpa cadangan — jadi melupakan salah satunya
+ * menggagalkan `tsc`, bukan mengirim ornamen rusak ke produksi.
+ *
+ * MENAMBAH KATEGORI BARU menambah dua hal lagi: label di
+ * `MOTIF_CATEGORY_LABELS` dan urutan di `MOTIF_CATEGORIES` (keduanya di berkas
+ * ini), PLUS satu bentuk serpih di `PARTICLE_SHAPES` di
+ * `components/invitation/decor.tsx` — lapisan kelopak yang jatuh memilih
+ * bentuknya dari kategori, bukan dari motifnya.
  *
  * Berkas ini SENGAJA tidak mengimpor apa pun: ia adalah sumber data murni
  * yang dipakai bersama oleh server, komponen server, dan form admin.
  */
 
 /** Kelompok motif — dipakai untuk mengelompokkan tombol di form admin. */
-export type MotifCategory = "batik" | "wayang" | "flora" | "fauna" | "luxury";
+export type MotifCategory =
+  | "batik"
+  | "wayang"
+  | "nusantara"
+  | "islami"
+  | "flora"
+  | "fauna"
+  | "luxury";
 
 /**
  * Daftar semua motif yang dikenal.
@@ -50,10 +78,19 @@ export const MOTIF_IDS = [
   // Wayang
   "gunungan",
   "wayang-kulit",
+  // Nusantara
+  "songket",
+  "patra-bali",
+  // Islami
+  "girih",
+  "mashrabiya",
   // Flora
   "sakura",
   "melati",
   "monstera",
+  "anggrek",
+  "kamboja",
+  "dedaunan",
   // Fauna
   "kupu-kupu",
   "merak",
@@ -61,6 +98,7 @@ export const MOTIF_IDS = [
   // Mewah
   "damask",
   "art-deco",
+  "renda",
 ] as const;
 
 /** Id motif yang sah. */
@@ -140,6 +178,30 @@ export const MOTIFS: Record<MotifId, MotifDef> = {
     category: "wayang",
     note: "Figur wayang bersendi lengkap dengan ceking, benar-benar khas Jawa.",
   },
+  songket: {
+    id: "songket",
+    label: "Tenun Songket",
+    category: "nusantara",
+    note: "Jalur benang emas dengan pucuk rebung — khas Palembang dan Minang.",
+  },
+  "patra-bali": {
+    id: "patra-bali",
+    label: "Patra Bali",
+    category: "nusantara",
+    note: "Sulur ukiran patra punggel yang melingkar, langsung terbaca Bali.",
+  },
+  girih: {
+    id: "girih",
+    label: "Bintang Girih",
+    category: "islami",
+    note: "Bintang delapan geometris khas ornamen Islam, rapi dan tidak figuratif.",
+  },
+  mashrabiya: {
+    id: "mashrabiya",
+    label: "Kisi Mashrabiya",
+    category: "islami",
+    note: "Kisi kayu berlubang bergaya Timur Tengah, teduh dan berwibawa.",
+  },
   sakura: {
     id: "sakura",
     label: "Bunga Sakura",
@@ -157,6 +219,24 @@ export const MOTIFS: Record<MotifId, MotifDef> = {
     label: "Daun Monstera",
     category: "flora",
     note: "Daun bercelah, tropis dan bergaya modern.",
+  },
+  anggrek: {
+    id: "anggrek",
+    label: "Bunga Anggrek",
+    category: "flora",
+    note: "Rangkaian anggrek bulan yang melengkung — bunga nasional Indonesia.",
+  },
+  kamboja: {
+    id: "kamboja",
+    label: "Bunga Kamboja",
+    category: "flora",
+    note: "Jepun Bali: lima kelopak lebar yang menumpang seperti kincir.",
+  },
+  dedaunan: {
+    id: "dedaunan",
+    label: "Dedaunan",
+    category: "flora",
+    note: "Ranting daun berpasangan, gaya rustic yang paling sering diminta.",
   },
   "kupu-kupu": {
     id: "kupu-kupu",
@@ -188,21 +268,39 @@ export const MOTIFS: Record<MotifId, MotifDef> = {
     category: "luxury",
     note: "Kipas dan garis berjenjang, bernuansa era deco 1920-an.",
   },
+  renda: {
+    id: "renda",
+    label: "Renda",
+    category: "luxury",
+    note: "Lengkung renda dan lubang kecil, klasik dan paling feminin.",
+  },
 };
 
 /** Label kategori untuk mengelompokkan tombol di form admin. */
 export const MOTIF_CATEGORY_LABELS: Record<MotifCategory, string> = {
   batik: "Batik",
   wayang: "Wayang & Gunungan",
+  nusantara: "Nusantara",
+  islami: "Islami",
   flora: "Bunga & Daun",
   fauna: "Hewan",
   luxury: "Mewah",
 };
 
-/** Urutan kategori saat ditampilkan di form admin. */
+/**
+ * Urutan kategori saat ditampilkan di form admin.
+ *
+ * HARUS sama dengan urutan grup di `MOTIF_IDS`. Filter "Semua" di
+ * `MotifPicker` menampilkan motif dalam urutan `MOTIF_IDS`, sedangkan tombol
+ * filternya memakai urutan di bawah — kalau keduanya berbeda, admin melihat
+ * tombol "Islami" di posisi keempat tapi motif islaminya muncul di baris
+ * terakhir kisi.
+ */
 export const MOTIF_CATEGORIES: readonly MotifCategory[] = [
   "batik",
   "wayang",
+  "nusantara",
+  "islami",
   "flora",
   "fauna",
   "luxury",

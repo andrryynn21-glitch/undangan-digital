@@ -146,7 +146,10 @@ export default function MusicPlayer({ src, active }: MusicPlayerProps) {
           className="fixed top-4 right-4 z-40 flex h-11 w-11 cursor-pointer items-center justify-center rounded-full transition-opacity hover:opacity-80 focus-visible:outline-2 focus-visible:outline-offset-2 motion-reduce:transition-none sm:top-6 sm:right-6"
           style={{
             backgroundColor: "var(--theme-primary)",
-            color: "var(--theme-background)",
+            // Ikon di atas isian `primary` yang pekat: `--theme-on-primary`
+            // adalah token yang dihitung `lib/palette.ts` khusus untuk itu
+            // (`#12100E` atau `#FFFDF9`, dipilih dari luminansi `primary`).
+            color: "var(--theme-on-primary)",
             outlineColor: "var(--theme-accent)",
             boxShadow:
               "0 14px 30px -12px color-mix(in srgb, var(--theme-text) 80%, transparent)",

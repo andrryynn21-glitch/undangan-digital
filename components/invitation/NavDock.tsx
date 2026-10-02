@@ -8,6 +8,7 @@ export type NavIcon =
   | "couple"
   | "story"
   | "event"
+  | "rundown"
   | "gallery"
   | "rsvp"
   | "gift"
@@ -27,6 +28,11 @@ const ICON_PATHS: Record<NavIcon, string> = {
     "M12 20s-6.5-3.9-6.5-8.6A3.9 3.9 0 0 1 12 8.6a3.9 3.9 0 0 1 6.5 2.8C18.5 16.1 12 20 12 20z",
   story: "M12 6.5C10 5 7.5 4.5 4 5v13c3.5-.5 6 0 8 1.5 2-1.5 4.5-2 8-1.5V5c-3.5-.5-6 0-8 1.5zM12 6.5V19.5",
   event: "M4 7.5h16v12.5H4zM8 4v3.5M16 4v3.5M4 11.5h16",
+  // JAM, bukan daftar bergaris. "Acara" di sebelahnya sudah memakai kalender,
+  // dan dua ikon persegi bergaris berdampingan terbaca sebagai tombol kembar.
+  // Jam juga yang paling tepat isinya: yang dicari tamu di bagian ini memang
+  // pukul berapa, bukan daftarnya.
+  rundown: "M12 4.5a7.5 7.5 0 1 1 0 15 7.5 7.5 0 0 1 0-15zM12 8v4.3l2.8 1.7",
   gallery: "M4 5.5h16v13H4zM4 15l4.5-4.5 3.5 3.5 3-3L20 15",
   rsvp: "M5 4.5h14v15H5zM8.5 12l2.5 2.5 4.5-5",
   gift: "M4 10h16v9.5H4zM3 6.5h18V10H3zM12 6.5V20M12 6.5S10.5 3 8.5 3.6 8.7 6.5 12 6.5zM12 6.5s1.5-3.5 3.5-2.9S15.3 6.5 12 6.5z",

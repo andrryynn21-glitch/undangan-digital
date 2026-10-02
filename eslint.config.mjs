@@ -12,6 +12,12 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // `.kilo/worktrees/*` berisi SALINAN UTUH repo ini. Tanpa baris ini ESLint
+    // ikut memeriksa salinan itu, sehingga kode yang sudah diperbaiki di
+    // sumbernya tetap dilaporkan bermasalah dari berkas kembarannya yang
+    // tertinggal — peringatan yang tidak bisa diperbaiki dari sini dan
+    // menyamarkan peringatan asli.
+    ".kilo/**",
   ]),
 ]);
 

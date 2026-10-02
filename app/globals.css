@@ -60,7 +60,22 @@ html {
    ========================================================================== */
 
 .inv-page {
-  --theme-primary: #c9a227;
+  /* Nilai cadangan ini adalah Minimal Gold SETELAH koreksi kontras, bukan
+     warna mentah di `config/themes/minimal-gold.json`.
+
+     Sebelumnya `--theme-primary` di sini adalah emas mentah `#c9a227`, dan itu
+     salah dua kali. Pertama, 2,38:1 di atas krem — di bawah ambang teks 4,5:1
+     yang ditetapkan `lib/palette.ts` sendiri. Kedua, emas mentah itu terang,
+     sehingga runtime SELALU memasangkannya dengan teks gelap `#12100e`
+     (7,85:1); memasangkannya dengan `--theme-on-primary: #fffdf9` seperti di
+     bawah adalah pasangan yang tidak pernah diproduksi jalur mana pun, dan
+     membuat label tombol ikut turun ke 2,38:1.
+
+     Emas terkoreksi `#8d721b` menyelesaikan keduanya: 4,54:1 untuk teks di atas
+     kanvas, dan karena kecerahan Rec. 601-nya 112 (di bawah ambang 140 di
+     `config/themes.ts`), runtime memasangkannya dengan krem — sama seperti di
+     sini, juga 4,54:1. Jadi cadangan dan hasil runtime kini satu nilai. */
+  --theme-primary: #8d721b;
   --theme-secondary: #f5efe6;
   --theme-background: #fffdf9;
   --theme-text: #2e2a24;
@@ -305,28 +320,143 @@ html {
 }
 
 /* --------------------------------------------------------------------------
+   Kelopak & serpih yang jatuh, DI DEPAN isi undangan
+
+   Semua ornamen lain di berkas ini berada di BELAKANG teks. Lapisan ini satu-
+   satunya yang di depan, dan itu keputusan yang disengaja: undangan digital
+   yang terasa hidup selalu punya sesuatu yang bergerak melintasi halaman, dan
+   gerakan di belakang teks tidak pernah terlihat karena tertutup kartu kaca.
+
+   TIGA HAL YANG MENJAGANYA TETAP AMAN
+
+   1. `pointer-events: none` di lapisan induknya, jadi tidak ada satu pun
+      kelopak yang bisa mencuri klik tombol atau tautan di bawahnya.
+   2. z-index 60: DI DEPAN sampul (50) supaya efeknya terlihat sejak layar
+      pertama yang dilihat tamu, tapi DI BELAKANG lightbox galeri (100) supaya
+      foto yang sedang dilihat penuh layar tidak pernah terhalang.
+   3. Jumlahnya sedikit (9 di Premium, 14 di VIP) dan kepekatannya rendah.
+      Yang diinginkan kesan gerimis kelopak, bukan badai.
+
+   GERAKANNYA DIBAGI DUA ELEMEN. Induknya hanya jatuh lurus ke bawah, anaknya
+   hanya bergoyang dan berputar — dengan durasi yang berbeda. Kalau keduanya
+   digabung jadi satu animasi, seluruh kelopak akan bergoyang serempak pada
+   fase yang sama dan hasilnya terbaca sebagai gerak mekanis, bukan tertiup
+   angin.
+   -------------------------------------------------------------------------- */
+
+@keyframes inv-petal-fall {
+  from {
+    /* Mulai di atas layar supaya kemunculannya tidak pernah terlihat. */
+    transform: translate3d(0, -14vh, 0);
+  }
+  to {
+    transform: translate3d(0, 114vh, 0);
+  }
+}
+
+@keyframes inv-petal-sway {
+  0% {
+    transform: translateX(-0.9rem) rotate(-20deg);
+  }
+  50% {
+    transform: translateX(0.9rem) rotate(24deg);
+  }
+  100% {
+    transform: translateX(-0.9rem) rotate(-20deg);
+  }
+}
+
+.inv-petals {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.inv-petal {
+  position: absolute;
+  top: 0;
+  animation: inv-petal-fall var(--inv-petal-fall, 20s) linear infinite;
+  animation-delay: var(--inv-petal-delay, 0s);
+  will-change: transform;
+}
+
+/* Anak langsungnya yang bergoyang — lihat alasan pembagiannya di atas. */
+.inv-petal > * {
+  display: block;
+  animation: inv-petal-sway var(--inv-petal-sway, 7s) ease-in-out infinite;
+  animation-delay: var(--inv-petal-delay, 0s);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  /* SENGAJA BERBEDA DARI SELURUH BERKAS INI: yang lain memakai
+     `animation: none`, lapisan ini DISEMBUNYIKAN TOTAL.
+     `animation: none` akan membekukan setiap kelopak di posisi awalnya —
+     yaitu di luar layar bagian atas untuk sebagian, dan menggantung diam di
+     tengah halaman untuk sebagian lain. Kelopak yang membeku di udara tidak
+     terbaca sebagai "animasi dimatikan", melainkan sebagai sampah yang
+     tertinggal di layar. Karena lapisan ini murni hiasan dan tidak membawa
+     informasi apa pun, menghilangkannya adalah perilaku yang benar. */
+  .inv-petals {
+    display: none;
+  }
+}
+
+/* --------------------------------------------------------------------------
    Kilau emas pada judul & garis
 
    `background-clip: text` dipakai agar kilau bisa menyapu di DALAM huruf,
    bukan hanya melintas di atasnya. Warna teks jadi `transparent` supaya yang
    terlihat hanya gradiennya — inilah yang membuat judul terasa seperti
    tulisan emas, bukan teks biasa dengan pantulan.
+
+   HANYA BOLEH ADA SATU BLOK `.inv-shimmer`. Sebelumnya ada dua, dipisah
+   ratusan baris, dengan gradasi dan durasi yang berbeda; yang di bawah
+   menang diam-diam karena spesifisitasnya sama. Akibatnya bukan sekadar satu
+   blok mati: blok kedua itu berada SESUDAH `@supports` di bawah dan memasang
+   ulang `color: transparent`, sehingga peramban tanpa `background-clip: text`
+   kehilangan seluruh judul VIP — persis kegagalan yang `@supports` itu
+   dibuat untuk mencegah.
+
+   BATAS UKURAN: KELAS INI HANYA SAH UNTUK TEKS ≥ 24 px.
+
+   Stop tengah gradien mencampur 22% putih ke `--theme-primary`, dan itu
+   MENURUNKAN kontras. `ensureReadableColors()` menjamin `primary` mencapai
+   4,5:1 terhadap kanvas; setelah dicampur, titik paling terang turun ke
+   sekitar 3,0:1. Diukur pada 2.520 warna (hue tiap 5°, tujuh saturasi, lima
+   kecerahan) yang dipaksa tepat ke 4,5:1: rasio terburuk 3,003:1, dan tidak
+   satu pun jatuh di bawah 3:1.
+
+   Artinya kilau ini duduk PERSIS di ambang WCAG untuk teks besar, tanpa
+   margin. Ambang itu sendiri adalah 24 px pada bobot 400 — dan preflight
+   Tailwind v4 mereset `font-weight: inherit` pada semua heading, jadi
+   `ThemedHeading` memang berbobot 400 kecuali pemanggilnya menambahkan kelas
+   bobot. Jadi heading berkilau di bawah 24 px melanggar ambang teks kecil
+   (4,5:1) dengan selisih besar, bukan tipis.
+
+   Kalau nanti butuh judul berkilau yang lebih kecil, yang harus diubah adalah
+   kadar putihnya di sini — bukan ukuran hurufnya dibiarkan mengecil.
    -------------------------------------------------------------------------- */
 
 .inv-shimmer {
-  background: linear-gradient(
+  background-image: linear-gradient(
     100deg,
-    var(--theme-gold) 0%,
-    color-mix(in srgb, #fff 55%, var(--theme-gold)) 38%,
-    var(--theme-gold) 58%,
-    color-mix(in srgb, var(--theme-primary) 60%, var(--theme-gold)) 82%,
-    var(--theme-gold) 100%
+    var(--theme-primary) 0%,
+    color-mix(in srgb, #fff 22%, var(--theme-primary)) 42%,
+    var(--theme-primary) 62%
   );
   background-size: 220% 100%;
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
-  animation: inv-shimmer 9s linear infinite;
+  animation: inv-shimmer 7s linear infinite;
+}
+
+@keyframes inv-shimmer {
+  to {
+    background-position: -220% 0;
+  }
 }
 
 /*
@@ -336,11 +466,14 @@ html {
  * yang tak terlihat bukan "kegagalan yang halus", tapi kata yang benar-benar
  * tidak terbaca. `@supports` memastikan warna teks asli hanya dihapus kalau
  * fitur yang dibutuhkan benar-benar tersedia.
+ *
+ * Harus tetap berada SESUDAH `.inv-shimmer` di atas: `@supports` tidak
+ * menambah spesifisitas, jadi urutan sumber yang menentukan.
  */
 @supports not ((-webkit-background-clip: text) or (background-clip: text)) {
   .inv-shimmer {
-    background: none;
-    color: var(--theme-gold);
+    background-image: none;
+    color: var(--theme-primary);
   }
 }
 
@@ -453,27 +586,6 @@ html {
   transform: scaleX(-1);
 }
 
-/* Teks judul dengan kilau emas bergerak (khusus VIP). */
-.inv-shimmer {
-  background-image: linear-gradient(
-    100deg,
-    var(--theme-primary) 0%,
-    color-mix(in srgb, #fff 22%, var(--theme-primary)) 42%,
-    var(--theme-primary) 62%
-  );
-  background-size: 220% 100%;
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
-  animation: inv-shimmer 7s linear infinite;
-}
-
-@keyframes inv-shimmer {
-  to {
-    background-position: -220% 0;
-  }
-}
-
 /* --------------------------------------------------------------------------
    Kartu perhiasan untuk hitung mundur
    -------------------------------------------------------------------------- */
@@ -561,6 +673,18 @@ html {
    Tombol
    -------------------------------------------------------------------------- */
 
+/*
+ * Teksnya memakai `--theme-on-primary`, BUKAN `--theme-background`.
+ *
+ * `ensureReadableColors()` menjamin `primary` berkontras 4,5:1 terhadap
+ * `background`, jadi memakai `background` sebagai warna teks memang lolos —
+ * selama isiannya `primary` murni. Isian di sini gradasi: perhentian
+ * pertamanya `primary` dicampur 18% putih, yakni lebih terang dari `primary`
+ * yang dijamin itu, sehingga jaminan 4,5:1 tidak lagi berlaku di sudut
+ * kiri-atas tombol. `--theme-on-primary` (`#12100E` atau `#FFFDF9`, dipilih
+ * dari luminansi `primary`) adalah token yang memang dihitung
+ * `lib/palette.ts` untuk keperluan ini dan memberi ruang lebih.
+ */
 .inv-btn {
   position: relative;
   background: linear-gradient(
@@ -569,7 +693,7 @@ html {
     var(--theme-primary) 55%,
     color-mix(in srgb, var(--theme-accent) 70%, var(--theme-primary))
   );
-  color: var(--theme-background);
+  color: var(--theme-on-primary);
   box-shadow:
     inset 0 1px 0 color-mix(in srgb, #fff 45%, transparent),
     0 10px 24px -12px color-mix(in srgb, var(--theme-primary) 85%, transparent);

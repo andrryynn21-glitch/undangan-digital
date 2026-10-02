@@ -14,13 +14,13 @@ import { MotifCrest } from "@/components/invitation/Ornaments";
 /**
  * Pemilih motif ornamen untuk form admin.
  *
- * Motif ditampilkan sebagai kotak yang benar-benar berisi motiknya, bukan
+ * Motif ditampilkan sebagai kotak yang benar-benar berisi motifnya, bukan
  * teks saja. Ini bukan hiasan: admin harus bisa melihat persis apa yang akan
  * muncul di undangan sebelum penyimpanan selesai, karena itulah inti dari
- *HGUNYA fitur "imajinasi".
+ * fitur "imajinasi".
  *
  * Setiap kotak memakai `MotifCrest` — komponen yang SAMA persis dengan yang
- * dirender di halaman undangan. Kalau picker ini menggambar ulang motifyang
+ * dirender di halaman undangan. Kalau picker ini menggambar ulang motifnya
  * sendiri, yang tampil di form bisa berbeda dari yang terkirim, dan admin
  * akan ditipu dua kali.
  */
@@ -78,14 +78,13 @@ export function MotifPicker({
               title={motif.note}
               className={`flex flex-col items-center gap-1.5 rounded-xl border p-2.5 text-center transition ${
                 selected
-                  ? "border-emerald-600 bg-emerald-50 ring-2 ring-emerald-600/30 dark:border-emerald-500 dark:bg-emerald-950/50"
+                  ? "border-emerald-600 bg-emerald-50 text-emerald-800 ring-2 ring-emerald-600/30 dark:border-emerald-500 dark:bg-emerald-950/50 dark:text-emerald-200"
                   : "border-zinc-200 hover:border-zinc-400 dark:border-zinc-700 dark:hover:border-zinc-500"
               }`}
             >
-              <span
-                className="flex h-12 items-center justify-center"
-                style={{ color: selected ? undefined : "currentColor" }}
-              >
+              {/* Motifnya mewarisi `color` dari tombol, jadi yang terpilih
+                  ikut menyala hijau lewat kelas di atas tanpa style tambahan. */}
+              <span className="flex h-12 items-center justify-center">
                 <MotifCrest motif={id} width={30} />
               </span>
               <span className="text-[0.7rem] font-medium leading-tight">

@@ -15,6 +15,10 @@ import {
   MAX_CHILD_OF_LENGTH,
   MAX_PAYMENT_ACCOUNTS,
   MAX_QUOTE_LENGTH,
+  MAX_RUNDOWN_ITEMS,
+  MAX_RUNDOWN_NOTE_LENGTH,
+  MAX_RUNDOWN_TIME_LENGTH,
+  MAX_RUNDOWN_TITLE_LENGTH,
   MAX_STORY_ITEMS,
   MAX_STORY_TEXT_LENGTH,
   MAX_STORY_TITLE_LENGTH,
@@ -38,6 +42,7 @@ import type {
   PaymentAccount,
   PaymentData,
   RsvpStatus,
+  RundownItem,
   StoryItem,
   WeddingEvent,
 } from "@/types/invitation";
@@ -378,6 +383,77 @@ function parseStoryItems(
 }
 
 /**
+ * Menyusun "Susunan Acara" dari baris-baris form admin.
+ *
+ * Aturannya sengaja sama persis dengan `parseStoryItems`: baris kosong total
+ * dilewati, baris terisi sebagian ditolak, urutan mengikuti urutan baris di
+ * form. Yang berbeda hanya kolom wajibnya — di sini WAKTU dan KEGIATAN,
+ * sedangkan keterangan boleh kosong. Rundown tanpa waktu bukan rundown, dan
+ * waktu tanpa kegiatan tidak memberi tahu tamu apa pun.
+ */
+function parseRundownItems(
+  formData: FormData
+): { items: RundownItem[]; error?: string } {
+  const times = readStringList(formData, "rundownTime");
+  const titles = readStringList(formData, "rundownTitle");
+  const notes = readStringList(formData, "rundownNote");
+
+  const rowCount = Math.max(times.length, titles.length, notes.length);
+  const items: RundownItem[] = [];
+
+  for (let index = 0; index < rowCount; index += 1) {
+    const time = times[index] ?? "";
+    const title = titles[index] ?? "";
+    const note = notes[index] ?? "";
+
+    if (!time && !title && !note) continue;
+
+    if (!time || !title) {
+      return {
+        items: [],
+        error: `Susunan acara ke-${index + 1} belum lengkap. Isi waktu dan nama kegiatannya (keterangan boleh dikosongkan).`,
+      };
+    }
+
+    if (time.length > MAX_RUNDOWN_TIME_LENGTH) {
+      return {
+        items: [],
+        error: `Waktu acara ke-${index + 1} terlalu panjang (maksimal ${MAX_RUNDOWN_TIME_LENGTH} karakter).`,
+      };
+    }
+
+    if (title.length > MAX_RUNDOWN_TITLE_LENGTH) {
+      return {
+        items: [],
+        error: `Nama kegiatan ke-${index + 1} terlalu panjang (maksimal ${MAX_RUNDOWN_TITLE_LENGTH} karakter).`,
+      };
+    }
+
+    if (note.length > MAX_RUNDOWN_NOTE_LENGTH) {
+      return {
+        items: [],
+        error: `Keterangan acara ke-${index + 1} terlalu panjang (maksimal ${MAX_RUNDOWN_NOTE_LENGTH} karakter).`,
+      };
+    }
+
+    items.push({
+      time,
+      title,
+      ...(note ? { note } : {}),
+    });
+  }
+
+  if (items.length > MAX_RUNDOWN_ITEMS) {
+    return {
+      items: [],
+      error: `Maksimal ${MAX_RUNDOWN_ITEMS} baris susunan acara per undangan.`,
+    };
+  }
+
+  return { items };
+}
+
+/**
  * Menyusun isi kolom `theme_config` dari data adat + gambar acuan tema.
  *
  * Warna gambar dibaca SEKALI di sini, saat admin menyimpan — bukan saat tamu
@@ -616,6 +692,9 @@ async function parseInvitationForm(
   const story = parseStoryItems(formData);
   if (story.error) return { error: story.error };
 
+  const rundown = parseRundownItems(formData);
+  if (rundown.error) return { error: rundown.error };
+
   const event: WeddingEvent = {
     name: eventName,
     label: eventLabel,
@@ -662,6 +741,7 @@ async function parseInvitationForm(
         events: [event],
         ...(quote ? { quote } : {}),
         ...(story.items.length > 0 ? { story: story.items } : {}),
+        ...(rundown.items.length > 0 ? { rundown: rundown.items } : {}),
         ...(coverPhoto.url ? { cover_photo_url: coverPhoto.url } : {}),
         ...(gallery.urls.length > 0 ? { gallery_urls: gallery.urls } : {}),
       },

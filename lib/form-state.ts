@@ -81,6 +81,20 @@ export const MAX_STORY_ITEMS = 8;
 export const MAX_STORY_TITLE_LENGTH = 60;
 export const MAX_STORY_TEXT_LENGTH = 400;
 
+/**
+ * Batas isi "Susunan Acara".
+ *
+ * Batasnya lebih longgar daripada kisah (12 lawan 8) karena rundown memang
+ * dihitung per kegiatan, bukan per babak: satu resepsi saja biasa memuat
+ * kedatangan tamu, pembukaan, sambutan, hiburan, sesi foto, dan penutup. Tapi
+ * tiap barisnya jauh lebih pendek — rundown yang kalimatnya panjang berhenti
+ * terbaca sebagai daftar jam dan berubah jadi paragraf.
+ */
+export const MAX_RUNDOWN_ITEMS = 12;
+export const MAX_RUNDOWN_TIME_LENGTH = 40;
+export const MAX_RUNDOWN_TITLE_LENGTH = 60;
+export const MAX_RUNDOWN_NOTE_LENGTH = 120;
+
 /** Panjang maksimum kutipan / ayat pembuka undangan. */
 export const MAX_QUOTE_LENGTH = 300;
 
