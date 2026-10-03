@@ -976,6 +976,151 @@ html {
 }
 
 /* --------------------------------------------------------------------------
+   Grand ornamen: gerak untuk motif besar
+   --------------------------------------------------------------------------
+   Motif besar butuh gerakan yang BERBEDA dari motif kecil. Ubin 40px idealnya
+   nyaris diam — bergerak terlalu cepat di belakang teks terasa seperti filter
+   foto. Ornamen 250px boleh bergerak justru karena matanya sudah menangkap
+   bentuknya, bukan sedang membacanya.
+
+   Semua amplitud di sini sengaja kecil. Amplitudo besar pada ornamen besar
+   membuat halaman terasa seperti slide presentasi, dan itu kebalikan dari
+   kesan "mewah".
+   -------------------------------------------------------------------------- */
+
+.inv-grand {
+  display: inline-block;
+  line-height: 0;
+}
+
+/* Goyangan bolak-balik satu derajat, seperti karangan yang bergoyang pelan
+   tertiup udara. Durasi 9s dipilih supaya pola goyangnya tidak pernah
+   terbaca sebagai "loop yang diulang": mata lebih dulu melihat dua detik
+   pertamanya, bukan detik kedelapan. */
+@keyframes inv-grand-sway {
+  0%,
+  100% {
+    transform: rotate(-1.6deg);
+  }
+  50% {
+    transform: rotate(1.6deg);
+  }
+}
+
+.inv-grand-sway {
+  transform-origin: 50% 78%;
+  animation: inv-grand-sway 9s ease-in-out infinite;
+}
+
+/* Cincin dalam yang berputar penuh. SANGAT lambat (70s): pada durasi lebih
+   pendek, cincin berputar akan terbaca seperti loading spinner — dan
+   undangan yang terlihat sedang "memuat" kehilangan seluruh kesan mewahnya. */
+@keyframes inv-grand-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.inv-grand-spin,
+.inv-grand-spin-slow {
+  transform-box: fill-box;
+  transform-origin: center;
+}
+
+.inv-grand-spin {
+  animation: inv-grand-spin 70s linear infinite;
+}
+
+.inv-grand-spin-slow {
+  animation: inv-grand-spin 140s linear infinite reverse;
+}
+
+/* Kilau yang menyusuri garis: garis emas berputus-putus yang bergerak terus
+   ke depan, sehingga selalu ada satu bagian yang sedang "menyala".
+
+   Panjang putus-putus (34) jauh lebih pendek daripada total lintasan, jadi
+   yang terlihat bukan garis penuh yang bergerak, melainkan PANJANG EMAS
+   pendek yang melintas — persis seperti cahaya yang menyapu tepi logam.
+   Kalau dasharray-nya sama panjang dengan lintasan, hasilnya cuma garis utuh
+   yang bergeser, dan kilaunya hilang. */
+@keyframes inv-grand-sweep {
+  from {
+    stroke-dashoffset: 320;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+.inv-grand-trace path,
+.inv-grand-trace circle,
+.inv-grand-trace ellipse,
+.inv-grand-trace line {
+  fill: none;
+  stroke: var(--theme-gold);
+  stroke-width: 2.4;
+  stroke-dasharray: 34 286;
+  animation: inv-grand-sweep 11s linear infinite;
+}
+
+/* Munculnya ornamen: sedikit membesar sambil memudar masuk. Dipakai sekali,
+   di sampul — bukan tiap kali elemen masuk layar, karena di bagian halaman
+   animasi masuknya sudah ditangani `Reveal`. */
+@keyframes inv-grand-enter {
+  from {
+    opacity: 0;
+    transform: scale(0.86);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.inv-grand--enter {
+  animation: inv-grand-enter 1.1s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+/* Posisi semprotan sudut.
+ *
+ * Semprotan digambar SATU KALI, berakar di pojok KIRI-BAWAH kanvas (ranting
+   tumbuh dari 4,196). Empat penjuru lain dijawab dengan transform, bukan
+   dengan empat gambar terpisah: rantingnya simetris diagonal sehingga
+   keempatnya benar-benar identik setelah dicermin — jadi cukup satu gambar
+   yang harus benar, bukan empat.
+
+ * `transform-origin` di sini dibiarkan di PUSAT kotak (nilai bawaan), bukan
+ * ke pojok akar.
+ *
+ * Semula pojok akar dipakai, dengan alasan "pangkal ranting harus tetap
+ * menempel". Hasilnya justru sebaliknya: scaleY(-1) terhadap pojok kiri-atas
+ * memantulkan gambar ke arah ATAS kotak, bukan ke dalam. Kotak 210px yang
+ * mestinya mulai di y=-25 menjadi membentang dari y=-235 sampai y=-25, jadi
+ * seluruh semprotan mendarat di luar viewport. Terukur di browser: spray
+ * top-left ada di y=-234 sementara panel sampul baru mulai di y=15 --
+ * elemennya ada di DOM tapi tidak pernah terlihat.
+ *
+ * Dicerminkan terhadap PUSAT, gambar tetap memakai kotak yang sama, hanya
+ * terbalik: akar (4,196) -> (4,4) pojok kiri-atas dan kepala (108,64) ->
+ * (108,136) mengarah ke dalam. Persis yang diinginkan, tanpa menggeser
+ * posisi kotak sama sekali. */
+.inv-grand-spray--bottom-left {
+  transform: none;
+}
+
+.inv-grand-spray--top-left {
+  transform: scaleY(-1);
+}
+
+.inv-grand-spray--bottom-right {
+  transform: scaleX(-1);
+}
+
+.inv-grand-spray--top-right {
+  transform: scale(-1, -1);
+}
+
+/* --------------------------------------------------------------------------
    Hormati preferensi "kurangi gerakan"
    -------------------------------------------------------------------------- */
 
@@ -1012,5 +1157,39 @@ html {
 
   .inv-btn:hover {
     transform: none;
+  }
+
+  /* Grand ornamen berhenti bergerak, TAPI TIDAK DIHIDE. Berbeda dengan
+     lapisan kelopak (`.inv-petals`) yang disembunyikan total, ornamen ini
+     justru bagian dari isi: menghapusnya membuat sampul kehilangan motifnya
+     sendiri, dan tamu akan melihat sampul kosong tanpa alasan.
+
+     Yang dimatikan hanya geraknya. `.inv-grand-trace` yang biasanya
+     menampilkan garis emas crawling dikembalikan ke garis putus-putus diam
+     — bukan dihapus, karena kilau yang berhenti di tengah jalan akan terlihat
+     seperti gambar yang rusak. */
+  .inv-grand-sway,
+  .inv-grand-spin,
+  .inv-grand-spin-slow,
+  .inv-grand--enter,
+  .inv-grand-trace path,
+  .inv-grand-trace circle,
+  .inv-grand-trace ellipse,
+  .inv-grand-trace line {
+    animation: none !important;
+  }
+
+  .inv-grand--enter {
+    opacity: 1;
+    transform: none;
+  }
+
+  .inv-grand-trace path,
+  .inv-grand-trace circle,
+  .inv-grand-trace ellipse,
+  .inv-grand-trace line {
+    stroke-dasharray: 34 286;
+    stroke-dashoffset: 0;
+    opacity: 0.5;
   }
 }

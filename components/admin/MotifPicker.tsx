@@ -10,6 +10,7 @@ import {
 } from "@/config/motifs";
 import type { MotifCategory, MotifId } from "@/config/motifs";
 import { MotifCrest } from "@/components/invitation/Ornaments";
+import { GrandMotif } from "@/components/invitation/GrandOrnament";
 
 /**
  * Pemilih motif ornamen untuk form admin.
@@ -48,6 +49,23 @@ export function MotifPicker({
   return (
     <div className="flex flex-col gap-3">
       <input type="hidden" name={name} value={value} />
+
+      {/* Pratinjau besar: motif terpilih dalam ukuran yang benar-benar dipakai
+          di sampul. Kisi kecil di bawah memakai crest, padahal yang akan dilihat
+          tamu di halaman adalah grand board — jadi tanpa pratinjau ini admin
+          menilai motif dari gambar yang tidak akan pernah muncul di hadapan
+          tamu. */}
+      {value ? (
+        <div className="flex items-center gap-4 rounded-xl border border-zinc-200 bg-zinc-50/60 p-3 dark:border-zinc-800 dark:bg-zinc-900/40">
+          <GrandMotif motif={value} size={92} shine color="#8d721b" />
+          <div className="min-w-0">
+            <p className="text-sm font-semibold">{MOTIFS[value].label}</p>
+            <p className="mt-1 text-xs leading-relaxed text-zinc-500 dark:text-zinc-400">
+              {MOTIFS[value].note} Tampil sebesar ini di sampul.
+            </p>
+          </div>
+        </div>
+      ) : null}
 
       <div className="flex flex-wrap gap-1.5">
         <FilterChip active={filter === "all"} onClick={() => setFilter("all")}>

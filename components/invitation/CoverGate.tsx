@@ -4,9 +4,9 @@ import Image from "next/image";
 import { useEffect, useState } from "react";
 import type { CSSProperties, ReactNode } from "react";
 
-import { CornerFrame, Divider, Monogram, ThemedHeading } from "@/components/invitation/decor";
+import { CornerFrame, Divider, Monogram, ThemedHeading, getDecorProfile } from "@/components/invitation/decor";
 import type { Design } from "@/components/invitation/decor";
-import { MotifCrest } from "@/components/invitation/Ornaments";
+import { GrandMotif, GrandSpray } from "@/components/invitation/GrandOrnament";
 import MusicPlayer from "@/components/invitation/MusicPlayer";
 import NavDock from "@/components/invitation/NavDock";
 import type { NavItem } from "@/components/invitation/NavDock";
@@ -167,9 +167,14 @@ export default function CoverGate({
         }`}
         style={{ backgroundColor: "var(--theme-background)" }}
       >
-        {/* Crest dipakai ulang oleh varian veil & arch — TIDAK boleh diulang
-            dengan menulis ulang MotifCrest-nya di tiap varian, supaya perubahan
-            ukuran selalu konsisten. */}
+        {/* Ornamen puncak dipakai ulang oleh ketiga varian sampul — TIDAK
+            boleh diulang dengan menulis ulang gambarnya di tiap varian, supaya
+            perubahan ukuran selalu konsisten.
+
+            UKURANNYA IKUT PAKET, bukan tema: Silver tetap 40px (janji
+            "tampil bersih"), Premium 96px, VIP 150px. Sebelumnya 40px untuk
+            semua paket, sehingga sampul tidak pernah menampilkan motifnya
+            sebagai gambar — hanya sebagai ikon kecil di atas monogram. */}
         {design.layout.cover === "veil" ? (
           <CoverVeil
             groomName={groomName}
@@ -179,13 +184,8 @@ export default function CoverGate({
             coverLuminance={coverLuminance}
             guestName={guestName}
             onOpen={() => setOpened(true)}
-            coverCrest={
-              <MotifCrest
-                motif={design.motif}
-                width={40}
-                className="inv-cover-crest"
-              />
-            }
+            coverCrest={<CoverOrnament design={design} onPhoto />}
+            coverSprays={<CoverSprays design={design} mode="screen" />}
           />
         ) : design.layout.cover === "arch" ? (
           <CoverArch
@@ -196,13 +196,8 @@ export default function CoverGate({
             coverLuminance={coverLuminance}
             guestName={guestName}
             onOpen={() => setOpened(true)}
-            coverCrest={
-              <MotifCrest
-                motif={design.motif}
-                width={40}
-                className="inv-cover-crest"
-              />
-            }
+            coverCrest={<CoverOrnament design={design} onPhoto />}
+            coverSprays={<CoverSprays design={design} mode="screen" />}
           />
         ) : (
           <CoverClassic
@@ -236,6 +231,112 @@ export default function CoverGate({
  * nama mempelai yang langsung memberi tahu tamu bahwa ini undangan, bukan
  * halaman web biasa.
  */
+/**
+ * Ornamen puncak sampul, satu-satunya di semua varian sampul.
+ *
+ * UKURAN IKUT PAKET, BUKAN TEMA
+ *
+ * Silver 40px (crest lama, apa adanya), Premium 96px, VIP 150px. Ini yang
+ * membuat "pilih motif sendiri" menjadi sesuatu yang benar-benar terlihat:
+ * motif pilihan klien ada di halaman sampul sebagai gambar besar yang
+ * bergerak, bukan sebagai ikon 40px di atas monogram.
+ *
+ * Kilau garis (`shine`) hanya untuk VIP. Pada dua paket di bawahnya, garis
+ * emas yang menyusuri ornamen akan terlihat ramai di ukuran sekecil itu.
+ *
+ * `color` mengikuti keadaan sampul: di atas foto, ornamen memakai putih
+ * semi-transparan supaya tidak mengalahkan peredup; tanpa foto, warnanya
+ * ikut token tema seperti elemen lain.
+ */
+function CoverOrnament({
+  design,
+  onPhoto = false,
+}: {
+  design: Design;
+  onPhoto?: boolean;
+}) {
+  const size = design.level === "simple" ? 40 : design.level === "rich" ? 96 : 150;
+
+  return (
+    <GrandMotif
+      motif={design.motif}
+      size={size}
+      shine={design.level === "lavish"}
+      enter
+      className="inv-cover-crest"
+      color={
+        onPhoto ? "rgba(255,255,255,0.82)" : "var(--theme-accent)"
+      }
+    />
+  );
+}
+
+/**
+ * Dua semprotan sudut pada sampul.
+ *
+ * POSISI DI LUAR KARTU, BUKAN DI DALAMNYA
+ *
+ * Semprotan sengaja dijahit di pojok dan SENGAJA meluber keluar dari tepinya.
+ * Yang terlihat sebagai bouquet di sampul undangan cetak memang begitu:
+ * rantingnya memotong garis bingkai, bukan berhenti rapi di dalamnya.
+ * Semprotan yang dipotong rapi akan terbaca sebagai gambar dekoratif yang
+ * dibuat-buat, bukan seperti karangan bunga.
+ *
+ * Dua mode, karena ada dua bentuk sampul:
+ *
+ *   - `card` — dijahit di pojok kartu kaca (sampul klasik).
+ *   - `screen` — dijahit di pojok layar (sampul veil & arch, yang tidak punya
+ *     kartu; di sana satu-satunya "bingkai" adalah tepi layar).
+ *
+ * `pointer-events: none` dan `aria-hidden` tetap dipasang: ornamen tidak boleh
+ * pernah menelan ketukan tombol "Buka Undangan" yang berdiri dekatnya.
+ */
+function CoverSprays({
+  design,
+  mode = "card",
+}: {
+  design: Design;
+  mode?: "card" | "screen";
+}) {
+  const profile = getDecorProfile(design.level);
+
+  if (!profile.grandWatermarkSize) return null;
+
+  const size = design.level === "lavish" ? 210 : 160;
+  const color =
+    mode === "screen" ? "rgba(255,255,255,0.55)" : "var(--theme-accent)";
+  const opacity = design.level === "lavish" ? 0.9 : 0.75;
+
+  return (
+    <span
+      className="pointer-events-none absolute inset-0 overflow-visible"
+      aria-hidden="true"
+    >
+      <span
+        className={`absolute ${
+          mode === "card" ? "-top-10 -left-10" : "-top-8 -left-8"
+        }`}
+        style={{ opacity }}
+      >
+        <GrandSpray motif={design.motif} corner="top-left" size={size} color={color} />
+      </span>
+      <span
+        className={`absolute ${
+          mode === "card" ? "-right-10 -bottom-10" : "-right-8 -bottom-8"
+        }`}
+        style={{ opacity }}
+      >
+        <GrandSpray
+          motif={design.motif}
+          corner="bottom-right"
+          size={size}
+          color={color}
+        />
+      </span>
+    </span>
+  );
+}
+
 function CoverClassic({
   groomName,
   brideName,
@@ -328,7 +429,13 @@ function CoverClassic({
 
               Hierarki vertikalnya tetap sama: mata tamu turun dari ornamen
               ke monogram ke nama. */}
-          <MotifCrest motif={design.motif} width={40} className="inv-cover-crest" />
+          <CoverOrnament design={design} onPhoto={onPhoto} />
+
+          {/* Semprotan sudut: dua ranting besar di pojok berhadapan yang
+              "menyerang" kartu dari luar. Inilah yang bikin sampul terasa
+              seperti undangan cetak, bukan kartu nama — dan hanya dipasang
+              pada paket Premium & VIP, karena Silver harus tetap bersih. */}
+          <CoverSprays design={design} />
 
           <Monogram
             initials={`${groomName.charAt(0)}${brideName.charAt(0)}`}
@@ -426,6 +533,7 @@ export function CoverVeil({
   guestName,
   onOpen,
   coverCrest,
+  coverSprays,
 }: {
   groomName: string;
   brideName: string;
@@ -435,6 +543,9 @@ export function CoverVeil({
   guestName?: string;
   onOpen: () => void;
   coverCrest: ReactNode;
+  /** Semprotan sudut di pojok layar; dipasang pemanggil, bukan digambar ulang
+   *  di sini, supaya ukurannya ikut aturan paket yang sama dengan sampul klasik. */
+  coverSprays?: ReactNode;
 }) {
   return (
     <div className="inv-cover-veil relative flex min-h-dvh w-full flex-col items-center justify-between gap-6 overflow-hidden px-6 py-10 text-center text-white">
@@ -463,6 +574,11 @@ export function CoverVeil({
         }}
         aria-hidden="true"
       />
+
+      {/* Semprotan pojok layar, DI ATAS kerudung: di dalam kerudung gradasinya
+          masih terlihat sebagai kabut, sedangkan di atas kerudung rantingnya
+          terbaca utuh. */}
+      {coverSprays}
 
       <div className="relative flex flex-col items-center gap-3 pt-4">
         <p className="text-[0.66rem] tracking-[0.45em] uppercase opacity-85">
@@ -546,6 +662,7 @@ export function CoverArch({
   guestName,
   onOpen,
   coverCrest,
+  coverSprays,
 }: {
   groomName: string;
   brideName: string;
@@ -555,6 +672,9 @@ export function CoverArch({
   guestName?: string;
   onOpen: () => void;
   coverCrest: ReactNode;
+  /** Semprotan sudut di pojok layar; dipasang pemanggil, bukan digambar ulang
+   *  di sini, supaya ukurannya ikut aturan paket yang sama dengan sampul klasik. */
+  coverSprays?: ReactNode;
 }) {
   return (
     <div className="relative flex min-h-dvh w-full items-center justify-center overflow-hidden px-6 py-10">
@@ -574,6 +694,10 @@ export function CoverArch({
         style={{ opacity: 0.72 - (coverLuminance ?? 0.5) * 0.33 }}
         aria-hidden="true"
       />
+
+      {/* Semprotan pojok layar, DI ATAS peredup hitam — di bawahnya rantingnya
+          ikut digelapkan dan membaur dengan foto. */}
+      {coverSprays}
 
       <div className="inv-cover-arch relative flex w-full max-w-sm flex-col items-center gap-4 bg-[rgba(20,16,14,0.34)] px-8 pt-14 pb-12 text-center text-white backdrop-blur-md">
         <div className="inv-cover-arch__frame" aria-hidden="true" />

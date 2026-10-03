@@ -9,6 +9,10 @@ import {
   MotifPattern,
   getPatternStep,
 } from "@/components/invitation/Ornaments";
+import {
+  GrandMedallion,
+  GrandMotif,
+} from "@/components/invitation/GrandOrnament";
 
 /**
  * Ornamen & lapisan dekorasi undangan.
@@ -77,6 +81,23 @@ export interface DecorProfile {
   watermark: boolean;
   /** Kepekatan ornamen besar itu; sengaja jauh lebih samar dari pola latar */
   watermarkOpacity: number;
+  /**
+   * Ornamen motif sebesar ini (dalam px) di belakang judul tiap bagian.
+   *
+   * `0` berarti tidak ada. Angkanya sengaja jauh lebih besar dari lebar crest
+   * lama (150px): di 150px yang tampil masih berupa "motif di belakang teks",
+   * sedangkan di 220px motif itu mulai menjadi gambar tersendiri dan berhenti
+   * mengganggu judul — yang justru yang dikehendai.
+   */
+  grandWatermarkSize: number;
+  /**
+   * Ukuran medali pembatas antar bagian (dalam px).
+   *
+   * Silver tetap memakai crest kecil 20px supaya janji "tampil bersih" di
+   * halaman paket tidak dilanggar; dua paket di atasnya memakai medali bulat
+   * yang bisa berputar dan berkilau.
+   */
+  medallionSize: number;
 }
 
 const DECOR_PROFILES: Record<DecorLevel, DecorProfile> = {
@@ -89,6 +110,8 @@ const DECOR_PROFILES: Record<DecorLevel, DecorProfile> = {
     strongGlass: false,
     watermark: false,
     watermarkOpacity: 0,
+    grandWatermarkSize: 0,
+    medallionSize: 0,
   },
   rich: {
     corners: true,
@@ -99,6 +122,8 @@ const DECOR_PROFILES: Record<DecorLevel, DecorProfile> = {
     strongGlass: true,
     watermark: true,
     watermarkOpacity: 0.07,
+    grandWatermarkSize: 200,
+    medallionSize: 56,
   },
   lavish: {
     corners: true,
@@ -109,6 +134,8 @@ const DECOR_PROFILES: Record<DecorLevel, DecorProfile> = {
     strongGlass: true,
     watermark: true,
     watermarkOpacity: 0.11,
+    grandWatermarkSize: 260,
+    medallionSize: 76,
   },
 };
 
@@ -176,12 +203,26 @@ interface DividerProps {
 /**
  * Pembatas dekoratif antar bagian.
  *
- * Semakin tinggi paket, semakin banyak elemen yang menyertai motif tengahnya.
+ *toy increasingly tinggi paket, semakin banyak elemen yang menyertai motif tengahnya.
  * Ornamen tengahnya sendiri mengikuti `design.motif` — jadi seluruh pembatas di
  * undangan langsung berubah begitu admin mengganti imajinasi.
+ *
+ * Bentuk tengahnya BEDA antar paket, dan itu disengaja:
+ *
+ *   - Silver (20px) — crest kecil, seperti sebelumnya. Janji "tampil bersih"
+ *     di halaman paket harus benar, dan angka itu yang membuatnya benar.
+ *   - Premium (56px) & VIP (76px) — `GrandMedallion`: grand board dalam cincin
+ *     yang berputar. Di sinilah motif akhirnya tampil sebagai gambar, bukan
+ *     sebagai titik.
+ *
+ * Sebelumnya semua paket memakai crest 20-26px yang sama. Akibatnya motif yang
+ * sama tampil dengan bobot visual yang sama di semua undangan, dan janji
+ * "pilih motif sendiri" — satu-satunya hal yang benar-benar dipilih klien —
+ * jadi tidak terlihat sama sekali.
  */
 export function Divider({ design, className = "" }: DividerProps) {
   const { level, motif } = design;
+  const profile = DECOR_PROFILES[level];
   const dot = (
     <span
       className="h-1 w-1 shrink-0 rounded-full bg-current"
@@ -198,7 +239,15 @@ export function Divider({ design, className = "" }: DividerProps) {
       {level !== "simple" ? dot : null}
       <span className="inv-rule w-10 sm:w-20" />
       {level === "lavish" ? <PetalSpray flip /> : null}
-      <Motif motif={motif} size={level === "simple" ? 20 : 26} />
+      {profile.medallionSize > 0 ? (
+        <GrandMedallion
+          motif={motif}
+          size={profile.medallionSize}
+          shine={level === "lavish"}
+        />
+      ) : (
+        <Motif motif={motif} size={20} />
+      )}
       {level === "lavish" ? <PetalSpray /> : null}
       <span className="inv-rule inv-rule--flip w-10 sm:w-20" />
       {level !== "simple" ? dot : null}
@@ -378,11 +427,19 @@ export function CornerFrame({
  *
  * KENAPA INI ADA
  *
- * Sampai sini motif hanya pernah tampil kecil: 20–26 px di pembatas, 13–33 px
+ * Sampai sini motif hanya pernah tampil kecil: 20-26 px di pembatas, 13-33 px
  * di sudut, dan sebagai pola latar yang begitu samar sampai tidak terbaca
  * bentuknya. Jadi klien yang memilih Wayang Kulit sebenarnya tidak pernah
  * MELIHAT wayangnya — ia hanya melihat titik-titik kecil. Di sini motif itu
- * mendapat panggung: satu crest selebar 150 px di belakang setiap judul.
+ * mendapat panggung.
+ *
+ * SEBELUMNYA Crest 150px; sekarang `GrandMotif` 200-260px.
+ *
+ * Crest memang sudah "besar" dibanding yang lain, tapi ia tetap gambar yang
+ * dirancang untuk dibaca dalam 20-56px: naik ke 150px yang tersisa cuma
+ * komposisinya, garis dalamnya hilang. `GrandMotif` digambar khusus untuk
+ * ukuran ini, dan bergerak pelan — jadi yang muncul di belakang tiap judul
+ * bukan lagi kabut yang kebetulan berbentuk motif, melainkan gambar motifnya.
  *
  * KENAPA KEPEKATANNYA LEBIH RENDAH DARI POLA LATAR
  *
@@ -397,13 +454,10 @@ export function CornerFrame({
  */
 export function SectionWatermark({
   design,
-  width = 150,
   className = "",
   align = "center",
 }: {
   design: Design;
-  /** Lebar crest dalam piksel. */
-  width?: number;
   className?: string;
   /**
    * Penempatan horizontal watermark di dalam induk ber-`position: relative`.
@@ -421,13 +475,13 @@ export function SectionWatermark({
   const positionClass =
     align === "right"
       ? "top-1/2 right-0 -translate-y-1/2"
-      : "top-0 left-1/2 -translate-x-1/2 -translate-y-[38%]";
+      : "top-0 left-1/2 -translate-x-1/2 -translate-y-[40%]";
 
   return (
-    // Diletakkan di atas judul lalu digeser naik 38% tingginya sendiri, bukan
+    // Diletakkan di atas judul lalu digeser naik 40% tingginya sendiri, bukan
     // dipusatkan di tengah `header`: di tengah, ia akan berhimpitan dengan
-    // crest kecil di `Divider` yang bentuknya SAMA PERSIS, dan dua salinan
-    // bentuk yang sama saling menimpa terbaca sebagai kesalahan render.
+    // medali di `Divider` yang memuat motif yang SAMA, dan dua salinan bentuk
+    // yang sama saling menimpa terbaca sebagai kesalahan render.
     // Ruang di atasnya memang kosong — `Section` memberi `py-16 sm:py-24`.
     <span
       className={`pointer-events-none absolute ${positionClass} ${className}`}
@@ -437,7 +491,7 @@ export function SectionWatermark({
       }}
       aria-hidden="true"
     >
-      <MotifCrest motif={design.motif} width={width} />
+      <GrandMotif motif={design.motif} size={profile.grandWatermarkSize} />
     </span>
   );
 }
