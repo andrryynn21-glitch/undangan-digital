@@ -43,7 +43,7 @@ export function MotifPicker({
   const [filter, setFilter] = useState<MotifCategory | "all">("all");
 
   const visible = MOTIF_IDS.filter(
-    (id) => filter === "all" || MOTIFS[id].category === filter
+    (id) => filter === "all" || MOTIFS[id].category === filter,
   );
 
   return (
@@ -129,7 +129,9 @@ export function MotifPicker({
         {/* `value` dijaga hanya berisi id yang sah oleh state form, tapi tetap
             dicek di sini supaya komponen ini aman dipakai dari mana pun tanpa
             perlu prekondisi tambahan. */}
-        {value ? <p className="text-xs text-zinc-500">{MOTIFS[value].note}</p> : null}
+        {value ? (
+          <p className="text-xs text-zinc-500">{MOTIFS[value].note}</p>
+        ) : null}
       </div>
     </div>
   );

@@ -556,6 +556,9 @@ export function CoverVeil({
           fill
           priority
           sizes="100vw"
+          // Foto diisi admin dari URL bebas — optimasi dilewati agar host
+          // baru tidak perlu didaftarkan di `images.remotePatterns`.
+          unoptimized
           className="object-cover"
         />
       ) : null}
@@ -685,6 +688,9 @@ export function CoverArch({
           fill
           priority
           sizes="100vw"
+          // Foto diisi admin dari URL bebas — optimasi dilewati agar host
+          // baru tidak perlu didaftarkan di `images.remotePatterns`.
+          unoptimized
           className="object-cover"
         />
       ) : null}
